@@ -84,6 +84,7 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 <xsl:template name="mangle_repeatable_YN">
   <xsl:choose>
     <xsl:when test="./@repeatable = 'Y'"><xsl:text>true</xsl:text></xsl:when>
+    <xsl:when test="./@repeatable = 'y'"><xsl:text>true</xsl:text></xsl:when>
     <xsl:otherwise><xsl:text>false</xsl:text></xsl:otherwise>
   </xsl:choose>
 </xsl:template>
