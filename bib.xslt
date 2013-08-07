@@ -45,6 +45,13 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
     </xsl:for-each>
 </xsl:template>
 
+
+<xsl:template match="description//br">
+  <xsl:text>
+</xsl:text>
+</xsl:template>
+
+
 <xsl:template name="parse_indicators">
  <xsl:for-each select="./indicators/indicator">
   <xsl:variable name="POS"><xsl:value-of select="./@num"/></xsl:variable>
@@ -61,7 +68,7 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
    <xsl:element name="indicator">
    <xsl:attribute name="position"><xsl:value-of select="$POS"/></xsl:attribute>
    <xsl:attribute name="value"><xsl:value-of select="@code"/></xsl:attribute>
-   <xsl:element name="description"><xsl:value-of select="description"/></xsl:element>
+   <xsl:element name="description"><xsl:apply-templates select="description"/></xsl:element>
    </xsl:element>
   </xsl:for-each>
 </xsl:template>
@@ -74,7 +81,7 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
      <xsl:attribute name="repeatable"><xsl:call-template name="mangle_repeatable_YN" /></xsl:attribute>
      <xsl:element name="description">
        <xsl:value-of select="name"/><xsl:if test="description">: </xsl:if>
-       <xsl:value-of select="description"/>
+       <xsl:apply-templates select="description"/>
      </xsl:element>
    </xsl:element>
  </xsl:for-each>
