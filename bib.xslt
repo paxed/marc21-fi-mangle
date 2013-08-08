@@ -36,7 +36,11 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
     <xsl:for-each select="//datafields/datafield|//controlfields/controlfield[@repeatable!='']">
       <xsl:element name="field">
         <xsl:attribute name="tag"><xsl:value-of select="./@tag"/></xsl:attribute>
-        <xsl:attribute name="repeatable"><xsl:call-template name="mangle_repeatable_YN" /></xsl:attribute>
+        <xsl:attribute name="repeatable">
+          <xsl:call-template name="mangle_repeatable_YN">
+            <xsl:with-param name="REPEATABLE" select="./@repeatable"/>
+          </xsl:call-template>
+        </xsl:attribute>
         <xsl:element name="name"><xsl:value-of select="./name"/></xsl:element>
         <xsl:element name="description"><xsl:value-of select="./description"/></xsl:element>
         <xsl:call-template name="parse_indicators" />
@@ -76,22 +80,68 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 
 <xsl:template name="parse_subfields">
  <xsl:for-each select="./subfields/subfield">
-   <xsl:element name="subfield">
-     <xsl:attribute name="code"><xsl:value-of select="./@code"/></xsl:attribute>
-     <xsl:attribute name="repeatable"><xsl:call-template name="mangle_repeatable_YN" /></xsl:attribute>
-     <xsl:element name="description">
-       <xsl:value-of select="name"/><xsl:if test="description">: </xsl:if>
-       <xsl:apply-templates select="description"/>
-     </xsl:element>
-   </xsl:element>
+   <xsl:choose>
+     <xsl:when test="string-length(./@code) = 3">
+       <xsl:variable name="ALLCODECHARS">abcdefghijklmnopqrstuvwxyz0123456789</xsl:variable>
+       <xsl:variable name="CODECHAR_START"><xsl:value-of select="substring(./@code, 1, 1)"/></xsl:variable>
+       <xsl:variable name="CODECHAR_END"><xsl:value-of select="substring(./@code, 3, 1)"/></xsl:variable>
+       <xsl:variable name="CODE"><xsl:value-of select="concat($CODECHAR_START, substring-before(substring-after($ALLCODECHARS, $CODECHAR_START), $CODECHAR_END), $CODECHAR_END)"/></xsl:variable>
+       <xsl:variable name="REPEATABLE"><xsl:value-of select="./@repeatable"/></xsl:variable>
+       <xsl:call-template name="output_subfield">
+         <xsl:with-param name="CODE" select="$CODE"/>
+         <xsl:with-param name="REPEATABLE" select="$REPEATABLE"/>
+       </xsl:call-template>
+     </xsl:when>
+     <xsl:otherwise>
+       <xsl:variable name="CODE"><xsl:value-of select="./@code"/></xsl:variable>
+       <xsl:variable name="REPEATABLE"><xsl:value-of select="./@repeatable"/></xsl:variable>
+       <xsl:call-template name="output_subfield">
+         <xsl:with-param name="CODE" select="$CODE"/>
+         <xsl:with-param name="REPEATABLE" select="$REPEATABLE"/>
+       </xsl:call-template>
+     </xsl:otherwise>
+   </xsl:choose>
  </xsl:for-each>
 </xsl:template>
 
 
+<xsl:template name="output_subfield">
+ <xsl:param name="CODE"/>
+ <xsl:param name="REPEATABLE"/>
+ <xsl:choose>
+   <xsl:when test="string-length($CODE) &gt; 1">
+     <xsl:variable name="FCODE"><xsl:value-of select="$CODE"/></xsl:variable>
+     <xsl:call-template name="output_subfield">
+       <xsl:with-param name="CODE" select="substring($FCODE, 1, 1)"/>
+       <xsl:with-param name="REPEATABLE" select="$REPEATABLE"/>
+     </xsl:call-template>
+     <xsl:call-template name="output_subfield">
+       <xsl:with-param name="CODE" select="substring($FCODE, 2)"/>
+       <xsl:with-param name="REPEATABLE" select="$REPEATABLE"/>
+     </xsl:call-template>
+   </xsl:when>
+   <xsl:otherwise>
+     <xsl:element name="subfield">
+       <xsl:attribute name="code"><xsl:value-of select="$CODE"/></xsl:attribute>
+       <xsl:attribute name="repeatable">
+         <xsl:call-template name="mangle_repeatable_YN">
+           <xsl:with-param name="REPEATABLE" select="$REPEATABLE"/>
+         </xsl:call-template>
+       </xsl:attribute>
+       <xsl:element name="description">
+         <xsl:value-of select="name"/><xsl:if test="description">: </xsl:if>
+         <xsl:apply-templates select="description"/>
+       </xsl:element>
+     </xsl:element>
+   </xsl:otherwise>
+ </xsl:choose>
+</xsl:template>
+
 <xsl:template name="mangle_repeatable_YN">
+  <xsl:param name="REPEATABLE"/>
   <xsl:choose>
-    <xsl:when test="./@repeatable = 'Y'"><xsl:text>true</xsl:text></xsl:when>
-    <xsl:when test="./@repeatable = 'y'"><xsl:text>true</xsl:text></xsl:when>
+    <xsl:when test="$REPEATABLE = 'Y'"><xsl:text>true</xsl:text></xsl:when>
+    <xsl:when test="$REPEATABLE = 'y'"><xsl:text>true</xsl:text></xsl:when>
     <xsl:otherwise><xsl:text>false</xsl:text></xsl:otherwise>
   </xsl:choose>
 </xsl:template>
