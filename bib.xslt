@@ -34,21 +34,89 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 
 <xsl:template match="/fields">
     <xsl:for-each select="//datafields/datafield|//controlfields/controlfield[@repeatable!='']">
-      <xsl:element name="field">
-        <xsl:attribute name="tag"><xsl:value-of select="./@tag"/></xsl:attribute>
-        <xsl:attribute name="repeatable">
-          <xsl:call-template name="mangle_repeatable_YN">
-            <xsl:with-param name="REPEATABLE" select="./@repeatable"/>
+      <xsl:choose>
+        <xsl:when test="contains(./@tag, 'X')">
+          <xsl:call-template name="output_field">
+            <xsl:with-param name="TAG" select="./@tag"/>
+            <xsl:with-param name="REPS">0123456789,0123456789,0123456789</xsl:with-param>
           </xsl:call-template>
-        </xsl:attribute>
-        <xsl:element name="name"><xsl:value-of select="./name"/></xsl:element>
-        <xsl:element name="description"><xsl:value-of select="./description"/></xsl:element>
-        <xsl:call-template name="parse_indicators" />
-        <xsl:call-template name="parse_subfields" />
-      </xsl:element>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:call-template name="output_field">
+            <xsl:with-param name="TAG" select="./@tag"/>
+            <xsl:with-param name="REPS"></xsl:with-param>
+          </xsl:call-template>
+        </xsl:otherwise>
+      </xsl:choose>
     </xsl:for-each>
 </xsl:template>
 
+
+<xsl:template name="output_field">
+ <xsl:param name="TAG"/>
+ <xsl:param name="REPS"/>
+ <xsl:choose>
+   <xsl:when test="contains($TAG, 'X') and contains($REPS, '9')">
+     <xsl:variable name="REPS_TMP" select="substring-after($REPS, ',')"/>
+     <xsl:variable name="REPS_HUNS" select="substring-before($REPS, ',')"/>
+     <xsl:variable name="REPS_TENS" select="substring-before($REPS_TMP, ',')"/>
+     <xsl:variable name="REPS_ONES" select="substring-after($REPS_TMP, ',')"/>
+     <xsl:variable name="OTAG" select="$TAG"/>
+     <xsl:choose>
+       <xsl:when test="substring($TAG, 3, 1) = 'X' and string-length($REPS_ONES) &gt; 0">
+         <xsl:variable name="XTAG" select="concat(substring($TAG, 1, 2), substring($REPS_ONES, 1, 1))"/>
+         <xsl:variable name="XREPS_ONES" select="substring($REPS_ONES, 2)"/>
+         <xsl:call-template name="output_field">
+           <xsl:with-param name="TAG" select="$XTAG"/>
+           <xsl:with-param name="REPS" select="concat($REPS_HUNS,',',$REPS_TENS,',')"/>
+         </xsl:call-template>
+         <xsl:call-template name="output_field">
+           <xsl:with-param name="TAG" select="$OTAG"/>
+           <xsl:with-param name="REPS" select="concat($REPS_HUNS,',',$REPS_TENS,',',$XREPS_ONES)"/>
+         </xsl:call-template>
+       </xsl:when>
+       <xsl:when test="substring($TAG, 2, 1) = 'X' and string-length($REPS_TENS) &gt; 0">
+         <xsl:variable name="XTAG" select="concat(substring($TAG, 1, 1), substring($REPS_TENS, 1, 1), substring($TAG, 3))"/>
+         <xsl:variable name="XREPS_TENS" select="substring($REPS_TENS, 2)"/>
+         <xsl:call-template name="output_field">
+           <xsl:with-param name="TAG" select="$XTAG"/>
+           <xsl:with-param name="REPS" select="concat($REPS_HUNS,',',',',$REPS_ONES)"/>
+         </xsl:call-template>
+         <xsl:call-template name="output_field">
+           <xsl:with-param name="TAG" select="$OTAG"/>
+           <xsl:with-param name="REPS" select="concat($REPS_HUNS,',',$XREPS_TENS,',',$REPS_ONES)"/>
+         </xsl:call-template>
+       </xsl:when>
+       <xsl:when test="substring($TAG, 1, 1) = 'X' and string-length($REPS_HUNS) &gt; 0">
+         <xsl:variable name="XTAG" select="concat(substring($REPS_HUNS, 1, 1), substring($TAG, 2))"/>
+         <xsl:variable name="XREPS_HUNS" select="substring($REPS_HUNS, 2)"/>
+         <xsl:call-template name="output_field">
+           <xsl:with-param name="TAG" select="$XTAG"/>
+           <xsl:with-param name="REPS" select="concat(',',$REPS_TENS,',',$REPS_ONES)"/>
+         </xsl:call-template>
+         <xsl:call-template name="output_field">
+           <xsl:with-param name="TAG" select="$OTAG"/>
+           <xsl:with-param name="REPS" select="concat($XREPS_HUNS,',',$REPS_TENS,',',$REPS_ONES)"/>
+         </xsl:call-template>
+       </xsl:when>
+     </xsl:choose>
+   </xsl:when>
+   <xsl:otherwise>
+     <xsl:element name="field">
+       <xsl:attribute name="tag"><xsl:value-of select="$TAG"/></xsl:attribute>
+       <xsl:attribute name="repeatable">
+         <xsl:call-template name="mangle_repeatable_YN">
+           <xsl:with-param name="REPEATABLE" select="./@repeatable"/>
+         </xsl:call-template>
+       </xsl:attribute>
+       <xsl:element name="name"><xsl:value-of select="./name"/></xsl:element>
+       <xsl:element name="description"><xsl:value-of select="./description"/></xsl:element>
+       <xsl:call-template name="parse_indicators" />
+       <xsl:call-template name="parse_subfields" />
+     </xsl:element>
+   </xsl:otherwise>
+ </xsl:choose>
+</xsl:template>
 
 <xsl:template match="description//br">
   <xsl:text>
