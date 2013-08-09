@@ -64,16 +64,16 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
      <xsl:variable name="REPS_ONES" select="substring-after($REPS_TMP, ',')"/>
      <xsl:variable name="OTAG" select="$TAG"/>
      <xsl:choose>
-       <xsl:when test="substring($TAG, 3, 1) = 'X' and string-length($REPS_ONES) &gt; 0">
-         <xsl:variable name="XTAG" select="concat(substring($TAG, 1, 2), substring($REPS_ONES, 1, 1))"/>
-         <xsl:variable name="XREPS_ONES" select="substring($REPS_ONES, 2)"/>
+       <xsl:when test="substring($TAG, 1, 1) = 'X' and string-length($REPS_HUNS) &gt; 0">
+         <xsl:variable name="XTAG" select="concat(substring($REPS_HUNS, 1, 1), substring($TAG, 2))"/>
+         <xsl:variable name="XREPS_HUNS" select="substring($REPS_HUNS, 2)"/>
          <xsl:call-template name="output_field">
            <xsl:with-param name="TAG" select="$XTAG"/>
-           <xsl:with-param name="REPS" select="concat($REPS_HUNS,',',$REPS_TENS,',')"/>
+           <xsl:with-param name="REPS" select="concat(',',$REPS_TENS,',',$REPS_ONES)"/>
          </xsl:call-template>
          <xsl:call-template name="output_field">
            <xsl:with-param name="TAG" select="$OTAG"/>
-           <xsl:with-param name="REPS" select="concat($REPS_HUNS,',',$REPS_TENS,',',$XREPS_ONES)"/>
+           <xsl:with-param name="REPS" select="concat($XREPS_HUNS,',',$REPS_TENS,',',$REPS_ONES)"/>
          </xsl:call-template>
        </xsl:when>
        <xsl:when test="substring($TAG, 2, 1) = 'X' and string-length($REPS_TENS) &gt; 0">
@@ -88,16 +88,16 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
            <xsl:with-param name="REPS" select="concat($REPS_HUNS,',',$XREPS_TENS,',',$REPS_ONES)"/>
          </xsl:call-template>
        </xsl:when>
-       <xsl:when test="substring($TAG, 1, 1) = 'X' and string-length($REPS_HUNS) &gt; 0">
-         <xsl:variable name="XTAG" select="concat(substring($REPS_HUNS, 1, 1), substring($TAG, 2))"/>
-         <xsl:variable name="XREPS_HUNS" select="substring($REPS_HUNS, 2)"/>
+       <xsl:when test="substring($TAG, 3, 1) = 'X' and string-length($REPS_ONES) &gt; 0">
+         <xsl:variable name="XTAG" select="concat(substring($TAG, 1, 2), substring($REPS_ONES, 1, 1))"/>
+         <xsl:variable name="XREPS_ONES" select="substring($REPS_ONES, 2)"/>
          <xsl:call-template name="output_field">
            <xsl:with-param name="TAG" select="$XTAG"/>
-           <xsl:with-param name="REPS" select="concat(',',$REPS_TENS,',',$REPS_ONES)"/>
+           <xsl:with-param name="REPS" select="concat($REPS_HUNS,',',$REPS_TENS,',')"/>
          </xsl:call-template>
          <xsl:call-template name="output_field">
            <xsl:with-param name="TAG" select="$OTAG"/>
-           <xsl:with-param name="REPS" select="concat($XREPS_HUNS,',',$REPS_TENS,',',$REPS_ONES)"/>
+           <xsl:with-param name="REPS" select="concat($REPS_HUNS,',',$REPS_TENS,',',$XREPS_ONES)"/>
          </xsl:call-template>
        </xsl:when>
      </xsl:choose>
