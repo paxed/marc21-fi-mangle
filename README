@@ -1,0 +1,20 @@
+These scripts are used to grab the translated MARC21 biblio and authority
+field descriptions from the Finnish national library, and converted into
+different formats for use in both Evergreen and Koha.
+
+get_fi_xmls.sh will download the xml files and process them.
+
+
+Output files
+------------
+
+marcedit-tooltips.xml
+	File used in the Evergreen MARC editor for tooltips.
+koha_db_fi.sql
+	SQL statements to update the Koha marc and authority
+	field descriptions.
+
+
+
+Pasi Kallinen
+paxed@alt.org

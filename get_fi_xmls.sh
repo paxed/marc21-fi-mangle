@@ -26,3 +26,8 @@ getfiles $AUKDIR $AUKFILES
 
 xsltproc bib.xslt data/$BIBDIR-000.xml > marcedit-tooltips.xml
 xsltproc aukt.xslt data/$AUKDIR-000.xml > aukt.xml
+
+
+perl koha-marcfields_to_db.pl > koha_db_fi.sql
+perl koha-authfields_to_db.pl >> koha_db_fi.sql
+
