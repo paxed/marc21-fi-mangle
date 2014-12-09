@@ -93,7 +93,7 @@ sub check_marc {
 }
 
 sub db_connect {
-    my $dbh = DBI->connect("DBI:" . DB_DRIVER . ":dbname=" . DB_DBNAME . ";host=" . DB_HOSTNAME, DB_USERNAME, DB_PASSWORD, {'RaiseError' => 1});
+    my $dbh = DBI->connect("DBI:" . DB_DRIVER . ":dbname=" . DB_DBNAME . ";host=" . DB_HOSTNAME, DB_USERNAME, DB_PASSWORD, {'RaiseError' => 1, mysql_enable_utf8 => 1});
     if (!$dbh) {
 	print "DB Error.";
 	footer();
