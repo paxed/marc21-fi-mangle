@@ -17,9 +17,16 @@ use constant DB_PASSWORD => 'katikoan';
 use constant DB_DBNAME   => 'koha';
 use constant DB_DRIVER   => 'mysql';
 
-use constant MARC_XML => './marcedit-tooltips.xml';
+# Biblios
+#use constant MARC_XML => './marcedit-tooltips.xml';
+# Evergreen
 #use constant DB_QUERY => 'select id, marc from biblio.record_entry order by id asc';
-use constant DB_QUERY => 'select biblionumber as id, marcxml as marc from biblioitems order by id asc';
+# Koha
+#use constant DB_QUERY => 'select biblionumber as id, marcxml as marc from biblioitems order by id asc';
+
+# Koha authorities
+use constant MARC_XML => './aukt.xml';
+use constant DB_QUERY => 'select authid as id, marcxml as marc from auth_header order by id asc';
 
 my %not_repeatable;
 
