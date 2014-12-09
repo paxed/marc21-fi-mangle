@@ -26,7 +26,9 @@ use constant DB_DRIVER   => 'mysql';
 
 # Koha authorities
 use constant MARC_XML => './aukt.xml';
-use constant DB_QUERY => 'select authid as id, marcxml as marc from auth_header order by id asc';
+#use constant DB_QUERY => 'select authid as id, marcxml as marc from auth_header order by id asc';
+# or possibly something like
+#use constant DB_QUERY => 'select ExtractValue(marcxml, "//controlfield[@tag=001]") as id, marcxml as marc from auth_header order by id asc';
 
 my %not_repeatable;
 
@@ -78,12 +80,14 @@ sub check_marc {
 
     my %mainf;
 
+    my @errors;
+
     foreach my $f ($record->field('...')) {
 	my $fi = $f->{'_tag'};
 	next if ((scalar($fi) < 10) || (lc($fi) eq 'ldr'));
 
-	print "$id ($fi)\n" if (defined($mainf{$fi}) && defined($not_repeatable{$fi}));
-	$mainf{$fi} = 1;
+	$mainf{$fi} = 0 if (!defined($mainf{$fi}));
+	$mainf{$fi}++;
 
 	my @subf = @{$f->{'_subfields'}};
 	my %subff;
@@ -92,11 +96,20 @@ sub check_marc {
 	    my $key = shift @subf;
 	    my $val = shift @subf;
 	    my $fikey = $fi.$key;
-	    print "$id ($fikey)\n" if (defined($subff{$fikey}) && defined($not_repeatable{$fikey}));
-	    $subff{$fikey} = 1;
+	    $subff{$fikey} = 0 if (!defined($subff{$fikey}));
+	    $subff{$fikey}++;
 	}
 
+	foreach my $k (keys(%subff)) {
+	    push(@errors, $k) if (($subff{$k} > 1) && defined($not_repeatable{$k}));
+	}
     }
+
+    foreach my $k (keys(%mainf)) {
+	push(@errors, $k) if (($mainf{$k} > 1) && defined($not_repeatable{$k}));
+    }
+
+    print "$id (".join(', ', @errors).")\n" if (@errors);
 }
 
 sub db_connect {
