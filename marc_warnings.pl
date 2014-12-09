@@ -50,9 +50,7 @@ foreach my $tf (@treefields) {
 	    my $ind = $dat{'indicator'};
 	    my @dsfar;
 	    $not_repeatable{$dat{'-tag'}} = 1 if ($dat{'-repeatable'} eq 'false');
-#	    print $dat{'-tag'}."\n" if ($dat{'-repeatable'} eq 'false');
 	    if (defined($dsf)) {
-#		print "XXX: ".ref($dat{'subfield'})."\n";
 		if (ref($dat{'subfield'}) eq 'ARRAY') {
 		    @dsfar = @{$dsf};
 		} else {
@@ -61,7 +59,6 @@ foreach my $tf (@treefields) {
 		foreach my $subfield (@dsfar) {
 		    my %datsf = %{$subfield};
 		    $not_repeatable{$dat{'-tag'}.$datsf{'-code'}} = 1 if ($datsf{'-repeatable'} eq 'false');
-#		    print $dat{'-tag'}.$datsf{'-code'}."\n" if ($datsf{'-repeatable'} eq 'false');
 		}
 	    }
 
@@ -86,9 +83,11 @@ foreach my $tf (@treefields) {
     }
 }
 
+# indicators are listed as sets of allowed chars. eg. ' ab' or '1-9'
 foreach my $tmp (keys(%allow_indicators)) {
     $allow_indicators{$tmp} = '[' . $allow_indicators{$tmp} . ']';
 }
+
 
 MARC::Charset->assume_unicode(1);
 
