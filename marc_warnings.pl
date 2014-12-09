@@ -18,20 +18,21 @@ use constant DB_DBNAME   => 'koha';
 use constant DB_DRIVER   => 'mysql';
 
 # Biblios
-#use constant MARC_XML => './marcedit-tooltips.xml';
+use constant MARC_XML => './marcedit-tooltips.xml';
 # Evergreen
 #use constant DB_QUERY => 'select id, marc from biblio.record_entry order by id asc';
 # Koha
-#use constant DB_QUERY => 'select biblionumber as id, marcxml as marc from biblioitems order by id asc';
+use constant DB_QUERY => 'select biblionumber as id, marcxml as marc from biblioitems order by id asc';
 
 # Koha authorities
-use constant MARC_XML => './aukt.xml';
+#use constant MARC_XML => './aukt.xml';
 #use constant DB_QUERY => 'select authid as id, marcxml as marc from auth_header order by id asc';
 # or possibly something like
 #use constant DB_QUERY => 'select ExtractValue(marcxml, "//controlfield[@tag=001]") as id, marcxml as marc from auth_header order by id asc';
 
 my %not_repeatable;
 
+my %allow_indicators;
 
 
 my $tpp = XML::TreePP->new();
@@ -40,13 +41,13 @@ my $tree = $tpp->parsefile(MARC_XML);
 
 my @treefields = $tree->{'fields'}{'field'};
 
-
 foreach my $tf (@treefields) {
     foreach my $tfx ($tf) {
 	my @arr = @{$tfx};
 	foreach my $tmph (@arr) {
 	    my %dat = %{$tmph};
 	    my $dsf = $dat{'subfield'};
+	    my $ind = $dat{'indicator'};
 	    my @dsfar;
 	    $not_repeatable{$dat{'-tag'}} = 1 if ($dat{'-repeatable'} eq 'false');
 #	    print $dat{'-tag'}."\n" if ($dat{'-repeatable'} eq 'false');
@@ -63,8 +64,30 @@ foreach my $tf (@treefields) {
 #		    print $dat{'-tag'}.$datsf{'-code'}."\n" if ($datsf{'-repeatable'} eq 'false');
 		}
 	    }
+
+	    if (defined($ind)) {
+		my @indar;
+		if (ref($dat{'indicator'}) eq 'ARRAY') {
+		    @indar = @{$ind};
+		} else {
+		    @indar = $ind;
+		}
+		foreach my $indicator (@indar) {
+		    my %datind = %{$indicator};
+		    my $ipos = $datind{'-position'};
+		    my $ival = $datind{'-value'};
+		    $ival =~ s/#/ /;
+		    $allow_indicators{$dat{'-tag'}.$ipos} = '' if (!defined($allow_indicators{$dat{'-tag'}.$ipos}));
+		    $allow_indicators{$dat{'-tag'}.$ipos} .= $ival;
+		}
+	    }
+
 	}
     }
+}
+
+foreach my $tmp (keys(%allow_indicators)) {
+    $allow_indicators{$tmp} = '[' . $allow_indicators{$tmp} . ']';
 }
 
 MARC::Charset->assume_unicode(1);
@@ -102,6 +125,16 @@ sub check_marc {
 
 	foreach my $k (keys(%subff)) {
 	    push(@errors, $k) if (($subff{$k} > 1) && defined($not_repeatable{$k}));
+	}
+
+	foreach my $ind ((1, 2)) {
+	    my $indv = $f->indicator($ind);
+	    my $tmp = $allow_indicators{$fi.$ind};
+	    if (defined($tmp)) {
+		if ($indv !~ /$tmp/) {
+		    push(@errors, $fi.'.ind'.$ind);
+		}
+	    }
 	}
     }
 
