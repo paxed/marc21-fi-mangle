@@ -130,11 +130,7 @@ sub check_marc {
 	foreach my $ind ((1, 2)) {
 	    my $indv = $f->indicator($ind);
 	    my $tmp = $allow_indicators{$fi.$ind};
-	    if (defined($tmp)) {
-		if ($indv !~ /$tmp/) {
-		    push(@errors, $fi.'.ind'.$ind);
-		}
-	    }
+	    push(@errors, $fi.'.ind'.$ind) if (defined($tmp) && ($indv !~ /$tmp/));
 	}
     }
 
