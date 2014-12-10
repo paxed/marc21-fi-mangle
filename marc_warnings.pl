@@ -1,6 +1,9 @@
 use strict;
 use warnings;
 #use diagnostics;
+
+use Getopt::Long;
+use Pod::Usage;
 use MARC::Record;
 use MARC::File::XML (BinaryEncoding => 'UTF-8');
 use MARC::Charset;
@@ -33,6 +36,19 @@ use constant DB_QUERY => 'select biblionumber as id, marcxml as marc from biblio
 my %not_repeatable;
 
 my %allow_indicators;
+
+my %ignore_fields;
+my $help = 0;
+my $man = 0;
+
+GetOptions(
+    'ignore=s' => sub { my ($onam, $oval) = @_; foreach my $tmp (split/,/, $oval) { $ignore_fields{$tmp} = 1; } },
+    'help|h|?' => \$help,
+    'man' => \$man
+    ) or pod2usage(2);
+
+pod2usage(1) if ($help);
+pod2usage(-exitval => 0, -verbose => 2) if $man;
 
 
 my $tpp = XML::TreePP->new();
@@ -109,6 +125,8 @@ sub check_marc {
 	my $fi = $f->{'_tag'};
 	next if ((scalar($fi) < 10) || (lc($fi) eq 'ldr'));
 
+	next if (defined($ignore_fields{$fi}));
+
 	$mainf{$fi} = 0 if (!defined($mainf{$fi}));
 	$mainf{$fi}++;
 
@@ -119,6 +137,9 @@ sub check_marc {
 	    my $key = shift @subf;
 	    my $val = shift @subf;
 	    my $fikey = $fi.$key;
+
+	    next if (defined($ignore_fields{$fikey}));
+
 	    $subff{$fikey} = 0 if (!defined($subff{$fikey}));
 	    $subff{$fikey}++;
 	}
@@ -130,7 +151,11 @@ sub check_marc {
 	foreach my $ind ((1, 2)) {
 	    my $indv = $f->indicator($ind);
 	    my $tmp = $allow_indicators{$fi.$ind};
-	    $inderrs{$fi.'.ind'.$ind} = (defined($inderrs{$fi.'.ind'.$ind}) ? $inderrs{$fi.'.ind'.$ind} : 0) + 1 if (defined($tmp) && ($indv !~ /$tmp/));
+	    my $key = $fi.'.ind'.$ind;
+
+	    next if (defined($ignore_fields{$key}));
+
+	    $inderrs{$key} = (defined($inderrs{$key}) ? $inderrs{$key} : 0) + 1 if (defined($tmp) && ($indv !~ /$tmp/));
 	}
     }
 
@@ -180,3 +205,32 @@ while (my $ref = $sth->fetchrow_hashref()) {
 
 
 db_disconnect($dbh);
+
+
+__END__
+
+=head1 NAME
+
+marc_warnings.pl - Report MARC errors against MARC21 format
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<-help>
+
+Print this help.
+
+=item B<-man>
+
+Print this help as a man page.
+
+=item B<-ignore>
+
+Ignore certain fields, subfields or indicators. For example:
+  C<-ignore=590,028a,655.ind2>
+would ignore the field 590, subfield 028a, and indicator 2 of field 655.
+
+=back
+
+=cut
