@@ -27,11 +27,14 @@ my %presets = (
 	'sql' => 'select biblionumber as id, marcxml as marc from biblioitems order by id asc',
 	'xml' => './marcedit-tooltips.xml'
     },
+    'eg-auth' => {
+	'sql' => 'select id, marc from authority.record_entry order by id asc',
+	'xml' => './aukt.xml'
+    },
     'eg-bibs' => {
 	'sql' => 'select id, marc from biblio.record_entry order by id asc',
 	'xml' => './marcedit-tooltips.xml'
     }
-    # TODO: eg-auth
     );
 
 my %not_repeatable;
