@@ -1,16 +1,12 @@
 use strict;
 use warnings;
-#use diagnostics;
 
 use Getopt::Long;
 use Pod::Usage;
 use MARC::Record;
 use MARC::File::XML (BinaryEncoding => 'UTF-8');
 use MARC::Charset;
-use Encode;
-use Unicode::Normalize;
 use DBI;
-use Data::Dumper;
 use XML::TreePP;
 
 
@@ -283,5 +279,11 @@ Set database settings. Available settings and default values are hostname ("loca
 username ("kohaadmin"), password ("katikoan"), dbname ("koha"), and driver ("mysql").
 
 =back
+
+=head1 DESCRIPTION
+
+This program will report format errors in your MARC21 XML data, either in your Koha or Evergreen
+system. Output will list a record ID and the fields where errors occurred. This will list
+repeated fields and subfields which are not repeatable, and invalid indicator values.
 
 =cut
