@@ -21,19 +21,19 @@ my %dbdata = (
 my %presets = (
     'koha-auth' => {
 	'sql' => 'select ExtractValue(marcxml, "//controlfield[@tag=001]") as id, marcxml as marc from auth_header order by id asc',
-	'xml' => './aukt.xml'
+	'xml' => './data/aukt.xml'
     },
     'koha-bibs' => {
 	'sql' => 'select biblionumber as id, marcxml as marc from biblioitems order by id asc',
-	'xml' => './marcedit-tooltips.xml'
+	'xml' => './data/bibs.xml'
     },
     'eg-auth' => {
 	'sql' => 'select id, marc from authority.record_entry order by id asc',
-	'xml' => './aukt.xml'
+	'xml' => './data/aukt.xml'
     },
     'eg-bibs' => {
 	'sql' => 'select id, marc from biblio.record_entry order by id asc',
-	'xml' => './marcedit-tooltips.xml'
+	'xml' => './data/bibs.xml'
     }
     );
 
@@ -259,16 +259,18 @@ Print this help as a man page.
 
 =item B<-evergreen>
 
-Use preset values. Requires one of -auth or -bibs and one of -koha or -evergreen.
-Defaults to -koha and -bibs
+Use preset values. Requires one of B<-auth> or B<-bibs> and one of B<-koha> or B<-evergreen>.
+Defaults to B<-koha> and B<-bibs>.
 
 =item B<-xml=filename>
 
-Set the XML file where MARC21 format rules are read from.
+Set the XML file where MARC21 format rules are read from. Default depends on B<-auth> or
+B<-bibs> option: data/aukt.xml or data/bibs.xml, respectively.
 
 =item B<-sql=text>
 
-Set the SQL query to perform. Must return two fields (id and marcxml).
+Set the SQL query to perform. Must return two fields (id and marcxml). Default depends
+on the preset values used.
 
 =item B<-ignore=fieldspecs>
 

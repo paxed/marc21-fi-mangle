@@ -11,7 +11,7 @@ use Data::Dumper;
 
 my $tpp = XML::TreePP->new();
 $tpp->set(force_array => ['subfield']);
-my $tree = $tpp->parsefile("marcedit-tooltips.xml");
+my $tree = $tpp->parsefile("data/bibs.xml");
 
 my @fields = @{$tree->{fields}->{field}};
 

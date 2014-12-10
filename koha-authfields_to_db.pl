@@ -11,7 +11,7 @@ use Data::Dumper;
 
 my $tpp = XML::TreePP->new();
 $tpp->set(force_array => ['subfield']);
-my $tree = $tpp->parsefile("aukt.xml");
+my $tree = $tpp->parsefile("data/aukt.xml");
 
 my @fields = @{$tree->{fields}->{field}};
 
