@@ -277,7 +277,7 @@ Ignore certain fields, subfields or indicators. For example:
   C<-ignore=590,028a,655.ind2>
 would ignore the field 590, subfield 028a, and indicator 2 of field 655.
 
-=item B<-db hostname=localhost>
+=item B<-db setting=value>
 
 Set database settings. Available settings and default values are hostname ("localhost"),
 username ("kohaadmin"), password ("katikoan"), dbname ("koha"), and driver ("mysql").
