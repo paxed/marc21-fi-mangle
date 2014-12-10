@@ -14,25 +14,28 @@ use Data::Dumper;
 use XML::TreePP;
 
 
-# Biblios
-use constant MARC_XML => './marcedit-tooltips.xml';
-# Evergreen
-#use constant DB_QUERY => 'select id, marc from biblio.record_entry order by id asc';
-# Koha
-use constant DB_QUERY => 'select biblionumber as id, marcxml as marc from biblioitems order by id asc';
-
-# Koha authorities
-#use constant MARC_XML => './aukt.xml';
-#use constant DB_QUERY => 'select authid as id, marcxml as marc from auth_header order by id asc';
-# or possibly something like
-#use constant DB_QUERY => 'select ExtractValue(marcxml, "//controlfield[@tag=001]") as id, marcxml as marc from auth_header order by id asc';
-
 my %dbdata = (
     'hostname' => 'localhost',
     'username' => 'kohaadmin',
     'password' => 'katikoan',
     'dbname' => 'koha',
     'driver' => 'mysql'
+    );
+
+my %presets = (
+    'koha-auth' => {
+	'sql' => 'select ExtractValue(marcxml, "//controlfield[@tag=001]") as id, marcxml as marc from auth_header order by id asc',
+	'xml' => './aukt.xml'
+    },
+    'koha-bibs' => {
+	'sql' => 'select biblionumber as id, marcxml as marc from biblioitems order by id asc',
+	'xml' => './marcedit-tooltips.xml'
+    },
+    'eg-bibs' => {
+	'sql' => 'select id, marc from biblio.record_entry order by id asc',
+	'xml' => './marcedit-tooltips.xml'
+    }
+    # TODO: eg-auth
     );
 
 my %not_repeatable;
@@ -42,9 +45,20 @@ my %allow_indicators;
 my %ignore_fields;
 my $help = 0;
 my $man = 0;
+my $marc_xml;
+my $sqlquery;
+
+my $auth_or_bibs = 'bibs';
+my $koha_or_eg = 'koha';
 
 GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (defined($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting."); } },
+    'xml=s' => \$marc_xml,
+    'sql=s' => \$sqlquery,
+    'auth' => sub { $auth_or_bibs = 'auth'; },
+    'bibs' => sub { $auth_or_bibs = 'bibs'; },
+    'koha' => sub { $koha_or_eg = 'koha'; },
+    'eg|evergreen' => sub { $koha_or_eg = 'eg'; },
     'ignore=s' => sub { my ($onam, $oval) = @_; foreach my $tmp (split/,/, $oval) { $ignore_fields{$tmp} = 1; } },
     'help|h|?' => \$help,
     'man' => \$man
@@ -53,10 +67,22 @@ GetOptions(
 pod2usage(1) if ($help);
 pod2usage(-exitval => 0, -verbose => 2) if $man;
 
+if (defined($koha_or_eg) && defined($auth_or_bibs)) {
+    my $tmp = $koha_or_eg.'-'.$auth_or_bibs;
+    if (defined($presets{$tmp})) {
+	$marc_xml = $presets{$tmp}{'xml'} if (!defined($marc_xml));
+	$sqlquery = $presets{$tmp}{'sql'} if (!defined($sqlquery));
+    } else {
+	die("Unknown preset combination $tmp");
+    }
+}
+
+die("No SQL query") if (!defined($sqlquery));
+die("No MARC21 format XML file") if (!defined($marc_xml));
 
 my $tpp = XML::TreePP->new();
 $tpp->set( utf8_flag => 1 );
-my $tree = $tpp->parsefile(MARC_XML);
+my $tree = $tpp->parsefile($marc_xml);
 
 my @treefields = $tree->{'fields'}{'field'};
 
@@ -188,12 +214,10 @@ sub db_disconnect {
     $dbh->disconnect();
 }
 
-my $sql = "";
 my $sth;
 my $dbh = db_connect();
 
-$sql = DB_QUERY;
-$sth = $dbh->prepare($sql);
+$sth = $dbh->prepare($sqlquery);
 
 $sth->execute();
 
@@ -228,7 +252,26 @@ Print this help.
 
 Print this help as a man page.
 
-=item B<-ignore>
+=item B<-auth>
+
+=item B<-bibs>
+
+=item B<-koha>
+
+=item B<-evergreen>
+
+Use preset values. Requires one of -auth or -bibs and one of -koha or -evergreen.
+Defaults to -koha and -bibs
+
+=item B<-xml=filename>
+
+Set the XML file where MARC21 format rules are read from.
+
+=item B<-sql=text>
+
+Set the SQL query to perform. Must return two fields (id and marcxml).
+
+=item B<-ignore=fieldspecs>
 
 Ignore certain fields, subfields or indicators. For example:
   C<-ignore=590,028a,655.ind2>
