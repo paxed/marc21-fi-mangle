@@ -101,6 +101,7 @@ sub check_marc {
     };
 
     my %mainf;
+    my %inderrs;
 
     my @errors;
 
@@ -123,18 +124,22 @@ sub check_marc {
 	}
 
 	foreach my $k (keys(%subff)) {
-	    push(@errors, $k) if (($subff{$k} > 1) && defined($not_repeatable{$k}));
+	    push(@errors, (($subff{$k} > 1) ? $subff{$k}.'x' : '').$k) if (($subff{$k} > 1) && defined($not_repeatable{$k}));
 	}
 
 	foreach my $ind ((1, 2)) {
 	    my $indv = $f->indicator($ind);
 	    my $tmp = $allow_indicators{$fi.$ind};
-	    push(@errors, $fi.'.ind'.$ind) if (defined($tmp) && ($indv !~ /$tmp/));
+	    $inderrs{$fi.'.ind'.$ind} = (defined($inderrs{$fi.'.ind'.$ind}) ? $inderrs{$fi.'.ind'.$ind} : 0) + 1 if (defined($tmp) && ($indv !~ /$tmp/));
 	}
     }
 
+    foreach my $k (keys(%inderrs)) {
+	push(@errors, (($inderrs{$k} > 1) ? $inderrs{$k}.'x' : '').$k);
+    }
+
     foreach my $k (keys(%mainf)) {
-	push(@errors, $k) if (($mainf{$k} > 1) && defined($not_repeatable{$k}));
+	push(@errors, (($mainf{$k} > 1) ? $mainf{$k}.'x' : '').$k) if (($mainf{$k} > 1) && defined($not_repeatable{$k}));
     }
 
     print "$id (".join(', ', @errors).")\n" if (@errors);
