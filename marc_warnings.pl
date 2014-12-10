@@ -14,12 +14,6 @@ use Data::Dumper;
 use XML::TreePP;
 
 
-use constant DB_HOSTNAME => 'localhost';
-use constant DB_USERNAME => 'kohaadmin';
-use constant DB_PASSWORD => 'katikoan';
-use constant DB_DBNAME   => 'koha';
-use constant DB_DRIVER   => 'mysql';
-
 # Biblios
 use constant MARC_XML => './marcedit-tooltips.xml';
 # Evergreen
@@ -33,6 +27,14 @@ use constant DB_QUERY => 'select biblionumber as id, marcxml as marc from biblio
 # or possibly something like
 #use constant DB_QUERY => 'select ExtractValue(marcxml, "//controlfield[@tag=001]") as id, marcxml as marc from auth_header order by id asc';
 
+my %dbdata = (
+    'hostname' => 'localhost',
+    'username' => 'kohaadmin',
+    'password' => 'katikoan',
+    'dbname' => 'koha',
+    'driver' => 'mysql'
+    );
+
 my %not_repeatable;
 
 my %allow_indicators;
@@ -42,6 +44,7 @@ my $help = 0;
 my $man = 0;
 
 GetOptions(
+    'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (defined($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting."); } },
     'ignore=s' => sub { my ($onam, $oval) = @_; foreach my $tmp (split/,/, $oval) { $ignore_fields{$tmp} = 1; } },
     'help|h|?' => \$help,
     'man' => \$man
@@ -171,7 +174,7 @@ sub check_marc {
 }
 
 sub db_connect {
-    my $dbh = DBI->connect("DBI:" . DB_DRIVER . ":dbname=" . DB_DBNAME . ";host=" . DB_HOSTNAME, DB_USERNAME, DB_PASSWORD, {'RaiseError' => 1, mysql_enable_utf8 => 1});
+    my $dbh = DBI->connect("DBI:" . $dbdata{'driver'} . ":dbname=" . $dbdata{'dbname'} . ";host=" . $dbdata{'hostname'}, $dbdata{'username'}, $dbdata{'password'}, {'RaiseError' => 1, mysql_enable_utf8 => 1});
     if (!$dbh) {
 	print "DB Error.";
 	footer();
@@ -230,6 +233,11 @@ Print this help as a man page.
 Ignore certain fields, subfields or indicators. For example:
   C<-ignore=590,028a,655.ind2>
 would ignore the field 590, subfield 028a, and indicator 2 of field 655.
+
+=item B<-db hostname=localhost>
+
+Set database settings. Available settings and default values are hostname ("localhost"),
+username ("kohaadmin"), password ("katikoan"), dbname ("koha"), and driver ("mysql").
 
 =back
 
