@@ -254,6 +254,8 @@ sub check_marc {
     foreach my $f ($record->field('...')) {
 	my $fi = $f->{'_tag'};
 
+	next if (defined($ignore_fields{$fi}));
+
 	if ($test_field_data) {
 	    if (defined($field_data{$auth_or_bibs}{'fixed_length'}{$fi})) {
 		my $tmp = $field_data{$auth_or_bibs}{'fixed_length'}{$fi};
@@ -285,8 +287,6 @@ sub check_marc {
 	}
 
 	next if ((scalar($fi) < 10) || (lc($fi) eq 'ldr'));
-
-	next if (defined($ignore_fields{$fi}));
 
 	$mainf{$fi} = 0 if (!defined($mainf{$fi}));
 	$mainf{$fi}++;
