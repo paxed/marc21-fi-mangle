@@ -1,5 +1,5 @@
 These scripts are used to grab the translated MARC21 biblio and authority
-field descriptions from the Finnish national library, and converted into
+field descriptions from the Finnish National Library, and converted into
 different formats for use in both Evergreen and Koha.
 
 get_fi_xmls.sh will download the xml files and process them.
