@@ -4,6 +4,9 @@ different formats for use in both Evergreen and Koha.
 
 get_fi_xmls.sh will download the xml files and process them.
 
+marc_warnings.pl will report MARC format errors in your database.
+It uses the processed XML files for field repeatability and indicator checks.
+
 
 Output files
 ------------
