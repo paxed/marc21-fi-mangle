@@ -37,6 +37,103 @@ my %presets = (
     }
     );
 
+# Could we grab these from the format description somehow?
+my %field_data = (
+    'bibs' => {
+	'fixed_length' => {
+	    'ldr' => 24,
+	    '005' => 16,
+	    '006' => 18,
+	    '008' => 40
+	},
+	'regex' => {
+	    'ldr' => {
+		'0' => qr/\d/,
+		'1' => qr/\d/,
+		'2' => qr/\d/,
+		'3' => qr/\d/,
+		'4' => qr/\d/,
+		'5' => qr/[acdnp]/,
+		'6' => qr/[acdefgijkmoprt]/,
+		'7' => qr/[abcdims]/,
+		'8' => qr/[ a]/,
+		'9' => qr/[ a]/,
+		'10' => qr/[2]/,
+		'11' => qr/[2]/,
+		'12' => qr/\d/,
+		'13' => qr/\d/,
+		'14' => qr/\d/,
+		'15' => qr/\d/,
+		'16' => qr/\d/,
+		'17' => qr/[ 1234578uz]/,
+		'18' => qr/[ aciu]/,
+		'19' => qr/[ abc]/,
+		'20' => qr/[4]/,
+		'21' => qr/[5]/,
+		'22' => qr/[0]/,
+		'23' => qr/[0]/,
+	    },
+	    '005' => {
+		'x' => qr/^\d{14}\.\d$/
+	    },
+	}
+    },
+    'auth' => {
+	'fixed_length' => {
+	    '005' => 16,
+	    '008' => 40
+	},
+	'regex' => {
+	    '005' => {
+		'x' => qr/^\d{14}\.\d$/
+	    },
+	    '008' => {
+		'0' => qr/\d/,
+		'1' => qr/\d/,
+		'2' => qr/\d/,
+		'3' => qr/\d/,
+		'4' => qr/\d/,
+		'5' => qr/\d/,
+		'6' => qr/[ din|]/,
+		'7' => qr/[ abcdefgn|]/,
+		'8' => qr/[ bef|]/,
+		'9' => qr/[ abcdefg|]/,
+		'10' => qr/[abcdnz|]/,
+		'11' => qr/[abcdknrsvz|]/,
+		'12' => qr/[abcnz|]/,
+		'13' => qr/[abcn|]/,
+		'14' => qr/[ab|]/,
+		'15' => qr/[ab|]/,
+		'16' => qr/[ab|]/,
+		'17' => qr/[abcden|]/,
+		'18' => qr/[ |]/,
+		'19' => qr/[ |]/,
+		'20' => qr/[ |]/,
+		'21' => qr/[ |]/,
+		'22' => qr/[ |]/,
+		'23' => qr/[ |]/,
+		'24' => qr/[ |]/,
+		'25' => qr/[ |]/,
+		'26' => qr/[ |]/,
+		'27' => qr/[ |]/,
+		'28' => qr/[ acfilmosuz|]/,
+		'29' => qr/[abn|]/,
+		'30' => qr/[ |]/,
+		'31' => qr/[ab|]/,
+		'32' => qr/[abn|]/,
+		'33' => qr/[abcdn|]/,
+		'34' => qr/[ |]/,
+		'35' => qr/[ |]/,
+		'36' => qr/[ |]/,
+		'37' => qr/[ |]/,
+		'38' => qr/[ sx|]/,
+		'39' => qr/[ cdu|]/,
+	    }
+    }
+    }
+    );
+
+
 my %not_repeatable;
 
 my %allow_indicators;
@@ -44,6 +141,8 @@ my %allow_indicators;
 my %ignore_fields;
 my $help = 0;
 my $man = 0;
+my $verbose = 0;
+my $test_field_data = 1;
 my $marc_xml;
 my $sqlquery;
 
@@ -54,9 +153,11 @@ GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (defined($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting."); } },
     'xml=s' => \$marc_xml,
     'sql=s' => \$sqlquery,
+    'v|verbose' => \$verbose,
     'auth' => sub { $auth_or_bibs = 'auth'; },
     'bibs' => sub { $auth_or_bibs = 'bibs'; },
     'koha' => sub { $koha_or_eg = 'koha'; },
+    'nodata' => sub { $test_field_data = 0; },
     'eg|evergreen' => sub { $koha_or_eg = 'eg'; },
     'ignore=s' => sub { my ($onam, $oval) = @_; foreach my $tmp (split/,/, $oval) { $ignore_fields{$tmp} = 1; } },
     'help|h|?' => \$help,
@@ -135,6 +236,7 @@ foreach my $tmp (keys(%allow_indicators)) {
 
 MARC::Charset->assume_unicode(1);
 
+
 sub check_marc {
     my $id = shift;
     my $marc = shift;
@@ -151,6 +253,37 @@ sub check_marc {
 
     foreach my $f ($record->field('...')) {
 	my $fi = $f->{'_tag'};
+
+	if ($test_field_data) {
+	    if (defined($field_data{$auth_or_bibs}{'fixed_length'}{$fi})) {
+		my $tmp = $field_data{$auth_or_bibs}{'fixed_length'}{$fi};
+		if ($tmp != length($f->data())) {
+		    push(@errors, "field $fi length is ".length($f->data())." should be $tmp");
+		    next;
+		}
+	    }
+
+	    if (defined($field_data{$auth_or_bibs}{'regex'}{$fi})) {
+		my $data = $f->data();
+		foreach my $k (sort(keys($field_data{$auth_or_bibs}{'regex'}{$fi}))) {
+		    my $s;
+		    if ($k =~ /^\d+$/) {
+			$s = substr($data, $k, 1);
+			if ($s !~ /$field_data{$auth_or_bibs}{'regex'}{$fi}{$k}/) {
+			    push(@errors, "field $fi position $k value at pos: \"$s\"");
+			    next;
+			}
+		    } else {
+			$s = $data;
+			if ($s !~ /$field_data{$auth_or_bibs}{'regex'}{$fi}{$k}/) {
+			    push(@errors, "field $fi illegal value \"$s\" does not match $field_data{$auth_or_bibs}{'regex'}{$fi}{$k}");
+			    next;
+			}
+		    }
+		}
+	    }
+	}
+
 	next if ((scalar($fi) < 10) || (lc($fi) eq 'ldr'));
 
 	next if (defined($ignore_fields{$fi}));
@@ -195,7 +328,7 @@ sub check_marc {
 	push(@errors, (($mainf{$k} > 1) ? $mainf{$k}.'x' : '').$k) if (($mainf{$k} > 1) && defined($not_repeatable{$k}));
     }
 
-    print "$id (".join(', ', @errors).")\n" if (@errors);
+    print STDERR "ERROR: id=$id (".join(', ', @errors).")\n" if (@errors);
 }
 
 sub db_connect {
@@ -224,6 +357,10 @@ $sth->execute();
 my $i = 1;
 while (my $ref = $sth->fetchrow_hashref()) {
     if ($ref->{'id'}) {
+	if ($verbose) {
+	    print "\n$i" if (!($i % 100));
+	    print ".";
+	}
 	check_marc($ref->{'id'}, $ref->{'marc'});
 	$i++;
     }
@@ -251,6 +388,10 @@ Print this help.
 
 Print this help as a man page.
 
+=item B<-v|-verbose>
+
+Print progress bars.
+
 =item B<-auth>
 
 =item B<-bibs>
@@ -270,13 +411,18 @@ B<-bibs> option: data/aukt.xml or data/bibs.xml, respectively.
 =item B<-sql=text>
 
 Set the SQL query to perform. Must return two fields (id and marcxml). Default depends
-on the preset values used.
+on the preset values used. For example, if you want the id this program reports to be the
+contents of the 001 field, use -sql='select ExtractValue(marcxml, "//controlfield[@tag=001]") as id, marcxml as marc from auth_header order by id asc'
 
 =item B<-ignore=fieldspecs>
 
 Ignore certain fields, subfields or indicators. For example:
   C<-ignore=590,028a,655.ind2>
 would ignore the field 590, subfield 028a, and indicator 2 of field 655.
+
+=item B<-nodata>
+
+Do not test fixed field lengths or data validity.
 
 =item B<-db setting=value>
 
@@ -289,6 +435,7 @@ username ("kohaadmin"), password ("katikoan"), dbname ("koha"), and driver ("mys
 
 This program will report format errors in your MARC21 XML data, either in your Koha or Evergreen
 system. Output will list a record ID and the fields where errors occurred. This will list
-repeated fields and subfields which are not repeatable, and invalid indicator values.
+repeated fields and subfields which are not repeatable, invalid indicator values, and
+some fixed-length controlfield data errors.
 
 =cut
