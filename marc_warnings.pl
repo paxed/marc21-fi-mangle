@@ -80,10 +80,37 @@ my %field_data = (
     },
     'auth' => {
 	'fixed_length' => {
+	    'ldr' => 24,
 	    '005' => 16,
 	    '008' => 40
 	},
 	'regex' => {
+	    'ldr' => {
+		'0' => qr/\d/,
+		'1' => qr/\d/,
+		'2' => qr/\d/,
+		'3' => qr/\d/,
+		'4' => qr/\d/,
+		'5' => qr/[acdnosx]/,
+		'6' => qr/[z]/,
+		'7' => qr/[ ]/,
+		'8' => qr/[ ]/,
+		'9' => qr/[ a]/,
+		'10' => qr/[2]/,
+		'11' => qr/[2]/,
+		'12' => qr/\d/,
+		'13' => qr/\d/,
+		'14' => qr/\d/,
+		'15' => qr/\d/,
+		'16' => qr/\d/,
+		'17' => qr/[no]/,
+		'18' => qr/[ ]/,
+		'19' => qr/[ ]/,
+		'20' => qr/[4]/,
+		'21' => qr/[5]/,
+		'22' => qr/[0]/,
+		'23' => qr/[0]/,
+	    },
 	    '005' => {
 		'x' => qr/^\d{14}\.\d$/
 	    },
@@ -154,8 +181,8 @@ GetOptions(
     'xml=s' => \$marc_xml,
     'sql=s' => \$sqlquery,
     'v|verbose' => \$verbose,
-    'auth' => sub { $auth_or_bibs = 'auth'; },
-    'bibs' => sub { $auth_or_bibs = 'bibs'; },
+    'a|auth|authority|authorities' => sub { $auth_or_bibs = 'auth'; },
+    'b|bib|bibs|biblios' => sub { $auth_or_bibs = 'bibs'; },
     'koha' => sub { $koha_or_eg = 'koha'; },
     'nodata' => sub { $test_field_data = 0; },
     'eg|evergreen' => sub { $koha_or_eg = 'eg'; },
@@ -257,10 +284,11 @@ sub check_marc {
 	next if (defined($ignore_fields{$fi}));
 
 	if ($test_field_data) {
-	    if (defined($field_data{$auth_or_bibs}{'fixed_length'}{$fi})) {
+	    my $key = $fi.'.length';
+	    if (defined($field_data{$auth_or_bibs}{'fixed_length'}{$fi}) && !defined($ignore_fields{$key})) {
 		my $tmp = $field_data{$auth_or_bibs}{'fixed_length'}{$fi};
 		if ($tmp != length($f->data())) {
-		    push(@errors, "field $fi length is ".length($f->data())." should be $tmp");
+		    push(@errors, "$key=".length($f->data())."/$tmp");
 		    next;
 		}
 	    }
@@ -417,8 +445,9 @@ contents of the 001 field, use -sql='select ExtractValue(marcxml, "//controlfiel
 =item B<-ignore=fieldspecs>
 
 Ignore certain fields, subfields or indicators. For example:
-  C<-ignore=590,028a,655.ind2>
-would ignore the field 590, subfield 028a, and indicator 2 of field 655.
+  C<-ignore=590,028a,655.ind2,008.length>
+would ignore the field 590, subfield 028a, indicator 2 of field 655, and
+length checking for field 008.
 
 =item B<-nodata>
 
