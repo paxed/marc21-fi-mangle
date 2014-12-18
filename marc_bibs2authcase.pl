@@ -7,7 +7,6 @@ use MARC::Record;
 use MARC::File::XML (BinaryEncoding => 'UTF-8');
 use MARC::Charset;
 use DBI;
-use XML::TreePP;
 
 binmode(STDOUT, ":utf8");
 
@@ -39,13 +38,15 @@ my %ignore_fields;
 my $help = 0;
 my $man = 0;
 my $verbose = 0;
-my $sqlquery = 'select biblionumber as id, marcxml as marc from biblioitems where biblionumber < 2000 order by id asc';
+my $dry_run = 0;
+my $sqlquery = 'select biblionumber as id, marcxml as marc from biblioitems order by id asc';
 
 GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (defined($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting."); } },
     'sql=s' => \$sqlquery,
-    'v|verbose' => sub { $verbose++ },
+    'v|verbose+' => \$verbose,
     'ignore=s' => sub { my ($onam, $oval) = @_; foreach my $tmp (split/,/, $oval) { $ignore_fields{$tmp} = 1; } },
+    'dry-run|test' => \$dry_run,
     'help|h|?' => \$help,
     'man' => \$man
     ) or pod2usage(2);
@@ -182,7 +183,7 @@ while (my $ref = $sth->fetchrow_hashref()) {
 	my $newmarc = check_marc($ref->{'id'}, $ref->{'marc'});
 	if ($ref->{'marc'} ne $newmarc) {
 	    print_x($ref->{'marc'}, $newmarc) if ($verbose > 1);
-	    $sth_upd->execute($newmarc, $ref->{'id'});
+	    $sth_upd->execute($newmarc, $ref->{'id'}) if (!$dry_run);
 	}
 	$i++;
     }
@@ -213,6 +214,10 @@ Print this help as a man page.
 =item B<-v|-verbose>
 
 Print progress bars.
+
+=item B<-dry-run|-test>
+
+Do not actually change anything.
 
 =item B<-sql=text>
 
