@@ -285,7 +285,8 @@ sub check_marc {
 
 	if ($test_field_data) {
 	    my $key = $fi.'.length';
-	    if (defined($field_data{$auth_or_bibs}{'fixed_length'}{$fi}) && !defined($ignore_fields{$key})) {
+	    next if (defined($ignore_fields{$key}));
+	    if (defined($field_data{$auth_or_bibs}{'fixed_length'}{$fi})) {
 		my $tmp = $field_data{$auth_or_bibs}{'fixed_length'}{$fi};
 		if ($tmp != length($f->data())) {
 		    push(@errors, "$key=".length($f->data())."/$tmp");
@@ -298,13 +299,13 @@ sub check_marc {
 		foreach my $k (sort(keys($field_data{$auth_or_bibs}{'regex'}{$fi}))) {
 		    my $s;
 		    if ($k =~ /^\d+$/) {
-			$s = substr($data, $k, 1);
+			$s = substr($data, $k, 1) || "";
 			if ($s !~ /$field_data{$auth_or_bibs}{'regex'}{$fi}{$k}/) {
 			    push(@errors, "field $fi position $k value at pos: \"$s\"");
 			    next;
 			}
 		    } else {
-			$s = $data;
+			$s = $data || "";
 			if ($s !~ /$field_data{$auth_or_bibs}{'regex'}{$fi}{$k}/) {
 			    push(@errors, "field $fi illegal value \"$s\" does not match $field_data{$auth_or_bibs}{'regex'}{$fi}{$k}");
 			    next;
