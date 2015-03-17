@@ -296,7 +296,7 @@ sub check_marc {
 
 	    if (defined($field_data{$auth_or_bibs}{'regex'}{$fi})) {
 		my $data = $f->data();
-		foreach my $k (sort(keys($field_data{$auth_or_bibs}{'regex'}{$fi}))) {
+		foreach my $k (sort(keys(%{$field_data{$auth_or_bibs}{'regex'}{$fi}}))) {
 		    my $s;
 		    if ($k =~ /^\d+$/) {
 			$s = substr($data, $k, 1) || "";
