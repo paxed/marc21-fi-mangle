@@ -208,6 +208,7 @@ sub do_cache_auths {
 		next if ($val =~ /^Manu$/);
 		next if ($val =~ /^Mikko$/);
 		next if ($val =~ /^Nemo$/);
+		next if ($val =~ /^Bon$/i);
 
 		my ($tmp, $aacr2) = trim_aacr2($val);
 
