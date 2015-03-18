@@ -115,6 +115,11 @@ sub check_marc {
 
 	my $authdata = $cache_auths{$authid} || get_auth($authid, $usefields{$fi}.'a');
 
+	if (!defined($authdata)) {
+	    print "NO AUTHDATA: $id, $fi, $authid\n";
+	    next;
+	}
+
 	if ($authdata =~ /^(.+) ?([:;,.])$/) {
 	    $authdata =~ $1;
 	}
@@ -230,10 +235,6 @@ contents of the 001 field, use -sql='select ExtractValue(marcxml, "//controlfiel
 Ignore certain fields, subfields or indicators. For example:
   C<-ignore=590,028a,655.ind2>
 would ignore the field 590, subfield 028a, and indicator 2 of field 655.
-
-=item B<-nodata>
-
-Do not test fixed field lengths or data validity.
 
 =item B<-db setting=value>
 
