@@ -44,7 +44,6 @@ sub db_connect {
     my $dbh = DBI->connect("DBI:" . $dbdata{'driver'} . ":dbname=" . $dbdata{'dbname'} . ";host=" . $dbdata{'hostname'}, $dbdata{'username'}, $dbdata{'password'}, {'RaiseError' => 1, mysql_enable_utf8 => 1});
     if (!$dbh) {
 	print "DB Error.";
-	footer();
 	exit;
     }
     return $dbh;
