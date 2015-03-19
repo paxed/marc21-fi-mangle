@@ -1,0 +1,155 @@
+#!/usr/bin/perl
+
+#
+#
+# perl gen_field_data.pl > /tmp/kohadb.dat
+# mysql -u root --local-infile -p koha
+# CREATE TABLE tempkw (bibnum int unsigned not null, tag varchar(3) not null, subfield varchar(1), ind1 varchar(1), ind2 varchar(2), value varchar(1024), KEY valueidx (value), KEY tagidx (tag), KEY fieldidx (tag, subfield));
+# LOAD DATA LOCAL INFILE '/tmp/kohadb.dat' INTO TABLE tempkw;
+#
+#
+
+
+
+use strict;
+use warnings;
+use DBI;
+use MARC::Record;
+use MARC::File::XML (BinaryEncoding => 'UTF-8');
+use MARC::Charset;
+use Getopt::Long;
+use Pod::Usage;
+
+use utf8;
+use open ':utf8';
+
+binmode(STDOUT, ":utf8");
+
+
+my %dbdata = (
+    'hostname' => 'localhost',
+    'username' => 'kohaadmin',
+    'password' => 'katikoan',
+    'dbname' => 'koha',
+    'driver' => 'mysql'
+    );
+
+my $help = 0;
+my $man = 0;
+my %ignore_fields;
+
+GetOptions(
+    'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (defined($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting."); } },
+    'ignore=s' => sub { my ($onam, $oval) = @_; foreach my $tmp (split/,/, $oval) { $ignore_fields{$tmp} = 1; } },
+    'help|h|?' => \$help,
+    'man' => \$man
+    ) or pod2usage(2);
+
+pod2usage(1) if ($help);
+pod2usage(-exitval => 0, -verbose => 2) if $man;
+
+
+MARC::Charset->assume_unicode(1);
+
+
+sub db_connect {
+    my $dbh = DBI->connect("DBI:" . $dbdata{'driver'} . ":dbname=" . $dbdata{'dbname'} . ";host=" . $dbdata{'hostname'}, $dbdata{'username'}, $dbdata{'password'}, {'RaiseError' => 1, mysql_enable_utf8 => 1});
+    if (!$dbh) {
+	print "DB Error.";
+	exit;
+    }
+    return $dbh;
+}
+
+sub db_disconnect {
+    my $dbh = shift || die("Error.");
+    $dbh->disconnect();
+}
+
+
+my %marcdata;
+
+my $dbh = db_connect();
+my $sth;
+
+$dbh->do("SET NAMES 'utf8';");
+
+my $sql = "select biblioitemnumber, marcxml from biblioitems"; # where biblioitemnumber < 10039083
+$sth = $dbh->prepare($sql);
+$sth->execute();
+while (my $ref = $sth->fetchrow_hashref()) {
+
+    my $bn = $ref->{'biblioitemnumber'};
+    my $record;
+    eval {
+        $record = MARC::Record->new_from_xml($ref->{'marcxml'});
+    };
+
+    push(@{$marcdata{'LDR'}}, "$bn\tLDR\t\t\t\t".$record->leader()) if (!defined($ignore_fields{'ldr'}));
+
+    foreach my $luri ($record->field('...')) {
+	my $tag = $luri->tag();
+	next if (defined($ignore_fields{$tag}));
+        if (scalar($tag) < 10) {
+	    push(@{$marcdata{$tag}}, "$bn\t$tag\t\t\t\t".$luri->data());
+	    next;
+	}
+
+        my $ind1 = $luri->indicator(1);
+        my $ind2 = $luri->indicator(2);
+
+	foreach my $sf ($luri->subfields()) {
+            my $code = $sf->[0];
+            my $data = $sf->[1];
+	    my $ctag = $tag . $code;
+	    next if (defined($ignore_fields{$ctag}));
+	    push(@{$marcdata{$ctag}}, "$bn\t$tag\t$code\t$ind1\t$ind2\t$data");
+
+	}
+    }
+}
+
+db_disconnect();
+
+foreach my $k (keys(%marcdata)) {
+    foreach my $v (@{$marcdata{$k}}) {
+	print $v."\n";
+    }
+}
+
+__END__
+
+=head1 NAME
+
+gen_field_data.pl - Create a data dump out of Koha biblioitems marcxml
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<-help>
+
+Print this help.
+
+=item B<-man>
+
+Print this help as a man page.
+
+=item B<-ignore=fieldspecs>
+
+Ignore certain fields or subfields. For example:
+  C<-field=590,028a>
+would ignore the fields 590 and subfields 028a.
+
+=item B<-db setting=value>
+
+Set database settings. Available settings and default values are hostname ("localhost"),
+username ("kohaadmin"), password ("katikoan"), dbname ("koha"), and driver ("mysql").
+
+=back
+
+=head1 DESCRIPTION
+
+This program will query MARC21 XML field contents and output them, one per line.
+
+=cut
