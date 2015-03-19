@@ -1,14 +1,9 @@
 #!/usr/bin/perl
 
-#
-#
 # perl gen_field_data.pl > /tmp/kohadb.dat
 # mysql -u root --local-infile -p koha
-# CREATE TABLE tempkw (bibnum int unsigned not null, tag varchar(3) not null, subfield varchar(1), ind1 varchar(1), ind2 varchar(2), value varchar(1024), KEY valueidx (value), KEY tagidx (tag), KEY fieldidx (tag, subfield));
+# CREATE TABLE tempkw (bibnum int unsigned not null, idx int unsigned not null, tag varchar(3) not null, subfield varchar(1), ind1 varchar(1), ind2 varchar(2), value varchar(1024), KEY valueidx (value), KEY tagidx (tag), KEY fieldidx (tag, subfield));
 # LOAD DATA LOCAL INFILE '/tmp/kohadb.dat' INTO TABLE tempkw;
-#
-#
-
 
 
 use strict;
@@ -37,10 +32,12 @@ my %dbdata = (
 my $help = 0;
 my $man = 0;
 my %ignore_fields;
+my $nocache = 0;
 
 GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (defined($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting."); } },
     'ignore=s' => sub { my ($onam, $oval) = @_; foreach my $tmp (split/,/, $oval) { $ignore_fields{$tmp} = 1; } },
+    'nocache' => \$nocache,
     'help|h|?' => \$help,
     'man' => \$man
     ) or pod2usage(2);
@@ -66,32 +63,42 @@ sub db_disconnect {
     $dbh->disconnect();
 }
 
-
 my %marcdata;
+
+sub output_marcdata {
+    foreach my $k (keys(%marcdata)) {
+	foreach my $v (@{$marcdata{$k}}) {
+	    print $v."\n";
+	}
+    }
+    undef %marcdata;
+}
 
 my $dbh = db_connect();
 my $sth;
 
 $dbh->do("SET NAMES 'utf8';");
 
-my $sql = "select biblioitemnumber, marcxml from biblioitems"; # where biblioitemnumber < 10039083
+my $sql = "select biblioitemnumber, marcxml from biblioitems order by biblioitemnumber asc";
 $sth = $dbh->prepare($sql);
 $sth->execute();
 while (my $ref = $sth->fetchrow_hashref()) {
 
     my $bn = $ref->{'biblioitemnumber'};
     my $record;
+    my $idx = 0;
+
     eval {
         $record = MARC::Record->new_from_xml($ref->{'marcxml'});
     };
 
-    push(@{$marcdata{'LDR'}}, "$bn\tLDR\t\t\t\t".$record->leader()) if (!defined($ignore_fields{'ldr'}));
+    push(@{$marcdata{'LDR'}}, "$bn\t".($idx++)."\tLDR\t\t\t\t".$record->leader()) if (!defined($ignore_fields{'ldr'}));
 
     foreach my $luri ($record->field('...')) {
 	my $tag = $luri->tag();
 	next if (defined($ignore_fields{$tag}));
         if (scalar($tag) < 10) {
-	    push(@{$marcdata{$tag}}, "$bn\t$tag\t\t\t\t".$luri->data());
+	    push(@{$marcdata{$tag}}, "$bn\t".($idx++)."\t$tag\t\t\t\t".$luri->data());
 	    next;
 	}
 
@@ -103,19 +110,17 @@ while (my $ref = $sth->fetchrow_hashref()) {
             my $data = $sf->[1];
 	    my $ctag = $tag . $code;
 	    next if (defined($ignore_fields{$ctag}));
-	    push(@{$marcdata{$ctag}}, "$bn\t$tag\t$code\t$ind1\t$ind2\t$data");
+	    push(@{$marcdata{$ctag}}, "$bn\t".($idx++)."\t$tag\t$code\t$ind1\t$ind2\t$data");
 
 	}
     }
+    output_marcdata() if ($nocache);
 }
 
 db_disconnect();
 
-foreach my $k (keys(%marcdata)) {
-    foreach my $v (@{$marcdata{$k}}) {
-	print $v."\n";
-    }
-}
+output_marcdata();
+
 
 __END__
 
@@ -134,6 +139,11 @@ Print this help.
 =item B<-man>
 
 Print this help as a man page.
+
+=item B<-nocache>
+
+Output the data immediately, instead of keeping it all in memory
+and dumping it out at end of script.
 
 =item B<-ignore=fieldspecs>
 
