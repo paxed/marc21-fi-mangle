@@ -33,11 +33,13 @@ my $help = 0;
 my $man = 0;
 my %ignore_fields;
 my $nocache = 0;
+my $insert_table = undef;
 
 GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (defined($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting."); } },
     'ignore=s' => sub { my ($onam, $oval) = @_; foreach my $tmp (split/,/, $oval) { $ignore_fields{$tmp} = 1; } },
     'nocache' => \$nocache,
+    'insert=s' => \$insert_table,
     'help|h|?' => \$help,
     'man' => \$man
     ) or pod2usage(2);
@@ -45,6 +47,7 @@ GetOptions(
 pod2usage(1) if ($help);
 pod2usage(-exitval => 0, -verbose => 2) if $man;
 
+die("Illegal characters in insert table name.") if (defined($insert_table) && ($insert_table !~ /^[a-zA-Z_0-9]+$/));
 
 MARC::Charset->assume_unicode(1);
 
@@ -63,21 +66,37 @@ sub db_disconnect {
     $dbh->disconnect();
 }
 
+my $dbh = db_connect();
+my $sth;
+my $ins_sth;
+
+
+$dbh->do("SET NAMES 'utf8';");
+
+if (defined($insert_table)) {
+    my @tmparr = ($insert_table);
+    $dbh->do("DROP TABLE IF EXISTS $insert_table");
+    $dbh->do("CREATE TABLE $insert_table (bibnum int unsigned not null, idx int unsigned not null, tag varchar(3) not null, subfield varchar(1), ind1 varchar(1), ind2 varchar(2), value varchar(1024), KEY valueidx (value), KEY tagidx (tag), KEY fieldidx (tag, subfield))");
+    $ins_sth = $dbh->prepare("INSERT INTO $insert_table (bibnum, idx, tag, subfield, ind1, ind2, value) values (?, ?, ?, ?, ?, ?, ?)");
+}
+
 my %marcdata;
 
 sub output_marcdata {
     foreach my $k (keys(%marcdata)) {
 	foreach my $v (@{$marcdata{$k}}) {
-	    print $v."\n";
+	    if (defined($insert_table)) {
+		my @arr = split(/\t/, $v);
+		#unshift(@arr, $insert_table);
+		$ins_sth->execute(@arr);
+	    } else {
+		print $v."\n";
+	    }
 	}
     }
     undef %marcdata;
 }
 
-my $dbh = db_connect();
-my $sth;
-
-$dbh->do("SET NAMES 'utf8';");
 
 my $sql = "select biblioitemnumber, marcxml from biblioitems order by biblioitemnumber asc";
 $sth = $dbh->prepare($sql);
@@ -117,7 +136,7 @@ while (my $ref = $sth->fetchrow_hashref()) {
     output_marcdata() if ($nocache);
 }
 
-db_disconnect();
+db_disconnect($dbh);
 
 output_marcdata();
 
@@ -144,6 +163,12 @@ Print this help as a man page.
 
 Output the data immediately, instead of keeping it all in memory
 and dumping it out at end of script.
+
+=item B<-insert=tablename>
+
+Insert data into table `tablename` instead of printing it to
+stdout. Drops and recreates the table automatically. Uses
+the same database settings as reading the data.
 
 =item B<-ignore=fieldspecs>
 
