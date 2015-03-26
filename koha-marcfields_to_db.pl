@@ -70,8 +70,6 @@ foreach my $c (keys(%koha_subfields)) {
 }
 
 
-#print Dumper(@fields);
-
 foreach my $nod (@fields) {
 
     my $f = $nod->{-tag};
