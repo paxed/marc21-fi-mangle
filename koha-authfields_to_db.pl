@@ -18,8 +18,13 @@ my @fields = @{$tree->{fields}->{field}};
 
 print <<HEADERI;
 UPDATE auth_tag_structure SET liblibrarian='Nimiö', libopac='Nimiö' WHERE tagfield='000';
+UPDATE auth_tag_structure SET liblibrarian='Tietueen kontrollinumero', libopac='Tietueen kontrollinumero' WHERE tagfield='001';
+UPDATE auth_tag_structure SET liblibrarian='Tietueen kontrollinumeron tunniste', libopac='Tietueen kontrollinumeron tunniste' WHERE tagfield='003';
+UPDATE auth_tag_structure SET liblibrarian='Viimeisimmän päivityksen ajankohta', libopac='Viimeisimmän päivityksen ajankohta' WHERE tagfield='005';
+UPDATE auth_tag_structure SET liblibrarian='Informaatiokoodit', libopac='Informaatiokoodit' WHERE tagfield='008';
 UPDATE auth_subfield_structure SET liblibrarian='kiinteämittainen kontrollikenttä', libopac='kiinteämittainen kontrollikenttä' WHERE tagfield IN ('000', '008') AND tagsubfield='\@';
 UPDATE auth_subfield_structure SET liblibrarian='kontrollikenttä', libopac='kontrollikenttä' WHERE tagfield IN ('001', '003', '005') AND tagsubfield='\@';
+
 
 HEADERI
 
