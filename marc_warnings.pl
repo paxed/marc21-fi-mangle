@@ -304,7 +304,6 @@ sub check_marc {
     my %mainf;
     my %inderrs;
     my %undeffs;
-    my $numdeffs = 0;
 
     my @errors;
 
@@ -315,7 +314,6 @@ sub check_marc {
 
         if (!defined($valid_fields{$fi})) {
             $undeffs{$fi} = 1;
-            $numdeffs++;
             #push(@errors, "field $fi not defined by format");
             next;
         }
@@ -386,8 +384,8 @@ sub check_marc {
 	}
     }
 
-    if ($numdeffs > 0) {
-        push(@errors, "field".($numdeffs > 1 ? "s" : "")." ".join(',', sort(keys(%undeffs)))." not in format");
+    if (scalar(keys(%undeffs)) > 0) {
+        push(@errors, "field".(scalar(keys(%undeffs)) > 1 ? "s" : "")." ".join(',', sort(keys(%undeffs)))." not in format");
     }
 
     foreach my $k (keys(%inderrs)) {
