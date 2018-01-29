@@ -18,6 +18,12 @@ koha_db_fi.sql
 	field descriptions.
 
 
+Requirements
+------------
+Debian:
+  sudo apt-get install libxml-treepp-perl libmarc-xml-perl libmarc-record-perl xsltproc
+
+
 
 Pasi Kallinen
 paxed@alt.org

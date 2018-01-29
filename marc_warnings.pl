@@ -53,11 +53,6 @@ my %field_data = (
 		'2' => qr/\d/,
 		'3' => qr/\d/,
 		'4' => qr/\d/,
-		'5' => qr/[acdnp]/,
-		'6' => qr/[acdefgijkmoprt]/,
-		'7' => qr/[abcdims]/,
-		'8' => qr/[ a]/,
-		'9' => qr/[ a]/,
 		'10' => qr/[2]/,
 		'11' => qr/[2]/,
 		'12' => qr/\d/,
@@ -65,13 +60,6 @@ my %field_data = (
 		'14' => qr/\d/,
 		'15' => qr/\d/,
 		'16' => qr/\d/,
-		'17' => qr/[ 1234578uz]/,
-		'18' => qr/[ aciu]/,
-		'19' => qr/[ abc]/,
-		'20' => qr/[4]/,
-		'21' => qr/[5]/,
-		'22' => qr/[0]/,
-		'23' => qr/[0]/,
 	    },
 	    '005' => {
 		'x' => qr/^\d{14}\.\d$/
@@ -91,11 +79,8 @@ my %field_data = (
 		'2' => qr/\d/,
 		'3' => qr/\d/,
 		'4' => qr/\d/,
-		'5' => qr/[acdnosx]/,
-		'6' => qr/[z]/,
 		'7' => qr/[ ]/,
 		'8' => qr/[ ]/,
-		'9' => qr/[ a]/,
 		'10' => qr/[2]/,
 		'11' => qr/[2]/,
 		'12' => qr/\d/,
@@ -103,9 +88,6 @@ my %field_data = (
 		'14' => qr/\d/,
 		'15' => qr/\d/,
 		'16' => qr/\d/,
-		'17' => qr/[no]/,
-		'18' => qr/[ ]/,
-		'19' => qr/[ ]/,
 		'20' => qr/[4]/,
 		'21' => qr/[5]/,
 		'22' => qr/[0]/,
@@ -161,6 +143,7 @@ my %field_data = (
     );
 
 
+my %valid_fields;
 my %not_repeatable;
 
 my %allow_indicators;
@@ -172,6 +155,7 @@ my $verbose = 0;
 my $test_field_data = 1;
 my $marc_xml;
 my $sqlquery;
+my $biburl;
 
 my $auth_or_bibs = 'bibs';
 my $koha_or_eg = 'koha';
@@ -188,7 +172,8 @@ GetOptions(
     'eg|evergreen' => sub { $koha_or_eg = 'eg'; },
     'ignore=s' => sub { my ($onam, $oval) = @_; foreach my $tmp (split/,/, $oval) { $ignore_fields{$tmp} = 1; } },
     'help|h|?' => \$help,
-    'man' => \$man
+    'man' => \$man,
+    'biburl|bibliourl=s' => \$biburl
     ) or pod2usage(2);
 
 pod2usage(1) if ($help);
@@ -207,6 +192,27 @@ if (defined($koha_or_eg) && defined($auth_or_bibs)) {
 die("No SQL query") if (!defined($sqlquery));
 die("No MARC21 format XML file") if (!defined($marc_xml));
 
+
+foreach my $k (keys(%ignore_fields)) {
+    if ($k =~ /[xX]/ && $k =~ /^([0-9x])([0-9x])([0-9x])(.*)$/i) {
+        my ($p1, $p2, $p3, $p4) = ($1, $2, $3, $4);
+        my @c1 = (($p1 =~ /x/i) ? 0..9 : $p1);
+        my @c2 = (($p2 =~ /x/i) ? 0..9 : $p2);
+        my @c3 = (($p3 =~ /x/i) ? 0..9 : $p3);
+
+        foreach my $a1 (@c1) {
+            foreach my $a2 (@c2) {
+                foreach my $a3 (@c3) {
+                    my $fld = $a1.$a2.$a3.$p4;
+                    $ignore_fields{$fld} = 1;
+                }
+            }
+        }
+        delete $ignore_fields{$k};
+    }
+}
+
+
 my $tpp = XML::TreePP->new();
 $tpp->set( utf8_flag => 1 );
 my $tree = $tpp->parsefile($marc_xml);
@@ -220,7 +226,9 @@ foreach my $tf (@treefields) {
 	    my %dat = %{$tmph};
 	    my $dsf = $dat{'subfield'};
 	    my $ind = $dat{'indicator'};
+            my $pos = $dat{'position'};
 	    my @dsfar;
+            $valid_fields{$dat{'-tag'}} = 1;
 	    $not_repeatable{$dat{'-tag'}} = 1 if ($dat{'-repeatable'} eq 'false');
 	    if (defined($dsf)) {
 		if (ref($dat{'subfield'}) eq 'ARRAY') {
@@ -251,9 +259,29 @@ foreach my $tf (@treefields) {
 		}
 	    }
 
+            if (defined($pos)) {
+                my @posar;
+                if (ref($dat{'position'}) eq 'ARRAY') {
+                    @posar = @{$pos};
+                } else {
+                    @posar = $pos;
+                }
+
+                foreach my $position (@posar) {
+                    my %postmp = %{$position};
+                    my $pospos = $postmp{'-pos'};
+                    my $poscodes = $postmp{'-codes'};
+
+                    $field_data{$auth_or_bibs}{'regex'}{$dat{'-tag'}}{int($pospos)} = qr/\Q$poscodes\E/;
+                }
+            }
+
 	}
     }
 }
+
+$field_data{$auth_or_bibs}{'regex'}{'ldr'}{10} = qr/[2]/;
+$field_data{$auth_or_bibs}{'regex'}{'ldr'}{11} = qr/[2]/;
 
 # indicators are listed as sets of allowed chars. eg. ' ab' or '1-9'
 foreach my $tmp (keys(%allow_indicators)) {
@@ -275,6 +303,8 @@ sub check_marc {
 
     my %mainf;
     my %inderrs;
+    my %undeffs;
+    my $numdeffs = 0;
 
     my @errors;
 
@@ -282,6 +312,13 @@ sub check_marc {
 	my $fi = $f->{'_tag'};
 
 	next if (defined($ignore_fields{$fi}));
+
+        if (!defined($valid_fields{$fi})) {
+            $undeffs{$fi} = 1;
+            $numdeffs++;
+            #push(@errors, "field $fi not defined by format");
+            next;
+        }
 
 	if ($test_field_data) {
 	    my $key = $fi.'.length';
@@ -349,6 +386,10 @@ sub check_marc {
 	}
     }
 
+    if ($numdeffs > 0) {
+        push(@errors, "field".($numdeffs > 1 ? "s" : "")." ".join(',', sort(keys(%undeffs)))." not in format");
+    }
+
     foreach my $k (keys(%inderrs)) {
 	push(@errors, (($inderrs{$k} > 1) ? $inderrs{$k}.'x' : '').$k);
     }
@@ -357,7 +398,12 @@ sub check_marc {
 	push(@errors, (($mainf{$k} > 1) ? $mainf{$k}.'x' : '').$k) if (($mainf{$k} > 1) && defined($not_repeatable{$k}));
     }
 
-    print STDERR "ERROR: id=$id (".join(', ', @errors).")\n" if (@errors);
+
+    if (defined($biburl)) {
+        print "<li><a href='".sprintf($biburl, $id)."'>$id</a>: (".join(', ', @errors).")\n" if (@errors);
+    } else {
+        print STDERR "ERROR: id=$id (".join(', ', @errors).")\n" if (@errors);
+    }
 }
 
 sub db_connect {
@@ -382,6 +428,7 @@ $sth = $dbh->prepare($sqlquery);
 
 $sth->execute();
 
+print "<html><head></head><body><ol>" if (defined($biburl));
 
 my $i = 1;
 while (my $ref = $sth->fetchrow_hashref()) {
@@ -395,6 +442,7 @@ while (my $ref = $sth->fetchrow_hashref()) {
     }
 }
 
+print "</ol></body></html>" if (defined($biburl));
 
 db_disconnect($dbh);
 
@@ -432,6 +480,11 @@ Print progress bars.
 Use preset values. Requires one of B<-auth> or B<-bibs> and one of B<-koha> or B<-evergreen>.
 Defaults to B<-koha> and B<-bibs>.
 
+=item B<-biburl=urlformat>
+
+Output HTML, with urlformat string as the href link to the biblio item.
+Use %s as the biblio id number placeholder in the urlformat string.
+
 =item B<-xml=filename>
 
 Set the XML file where MARC21 format rules are read from. Default depends on B<-auth> or
@@ -446,9 +499,9 @@ contents of the 001 field, use -sql='select ExtractValue(marcxml, "//controlfiel
 =item B<-ignore=fieldspecs>
 
 Ignore certain fields, subfields or indicators. For example:
-  C<-ignore=590,028a,655.ind2,008.length>
-would ignore the field 590, subfield 028a, indicator 2 of field 655, and
-length checking for field 008.
+  C<-ignore=590,028a,655.ind2,008.length,9xx>
+would ignore the field 590, subfield 028a, indicator 2 of field 655,
+length checking for field 008, and all 9XX fields.
 
 =item B<-nodata>
 

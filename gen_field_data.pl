@@ -92,6 +92,7 @@ sub output_marcdata {
 	    if (defined($insert_table)) {
 		my @arr = split(/\t/, $v);
 		#unshift(@arr, $insert_table);
+                print STDERR "ERROR execute params: '".join("', '", @arr)."'\n" if (scalar(@arr) != 7);
 		$ins_sth->execute(@arr);
 	    } else {
 		print $v."\n";
@@ -132,6 +133,12 @@ while (my $ref = $sth->fetchrow_hashref()) {
             my $code = $sf->[0];
             my $data = $sf->[1];
 	    my $ctag = $tag . $code;
+
+            if ($data =~ /\t/) {
+                print STDERR "bib $bn: $tag, subfield $code: contains a tab\n";
+                $data =~ s/\t//g;
+            }
+
 	    next if (defined($ignore_fields{$ctag}));
 	    push(@{$marcdata{$ctag}}, "$bn\t".($idx++)."\t$tag\t$code\t$ind1\t$ind2\t$data");
 

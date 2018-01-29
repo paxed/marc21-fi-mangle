@@ -22,8 +22,45 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
         </xsl:otherwise>
       </xsl:choose>
     </xsl:for-each>
+    <xsl:for-each select="//leader-directory/leader">
+      <xsl:element name="field">
+        <xsl:attribute name="tag">ldr</xsl:attribute>
+        <xsl:attribute name="repeatable">false</xsl:attribute>
+        <xsl:element name="name"><xsl:value-of select="../title"/></xsl:element>
+        <xsl:element name="description"><xsl:value-of select="../title"/></xsl:element>
+        <xsl:for-each select="./positions/position[@pos]">
+          <xsl:call-template name="output_ldr_pos">
+            <xsl:with-param name="POS" select="./@pos"/>
+          </xsl:call-template>
+        </xsl:for-each>
+      </xsl:element>
+    </xsl:for-each>
 </xsl:template>
 
+<xsl:template name="output_ldr_pos">
+  <xsl:param name="POS"/>
+  <xsl:choose>
+    <xsl:when test="string-length($POS) = 2">
+     <xsl:element name="position">
+       <xsl:attribute name="pos"><xsl:value-of select="$POS"/></xsl:attribute>
+       <xsl:attribute name="codes">
+         <xsl:text>[</xsl:text>
+         <xsl:for-each select="./values/value[@code]">
+           <xsl:choose>
+             <xsl:when test="contains(./@code,'#')">
+               <xsl:text> </xsl:text>
+             </xsl:when>
+             <xsl:otherwise>
+               <xsl:value-of select="./@code"/>
+             </xsl:otherwise>
+           </xsl:choose>
+         </xsl:for-each>
+         <xsl:text>]</xsl:text>
+       </xsl:attribute>
+     </xsl:element>
+    </xsl:when>
+  </xsl:choose>
+</xsl:template>
 
 <xsl:template name="output_field">
  <xsl:param name="TAG"/>
