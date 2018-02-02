@@ -9,7 +9,6 @@ use MARC::Charset;
 use DBI;
 use XML::TreePP;
 
-
 my %dbdata = (
     'hostname' => 'localhost',
     'username' => 'kohaadmin',
@@ -193,6 +192,12 @@ die("No SQL query") if (!defined($sqlquery));
 die("No MARC21 format XML file") if (!defined($marc_xml));
 
 
+sub sort_by_number {
+    my ( $anum ) = $a =~ /(\d+)/;
+    my ( $bnum ) = $b =~ /(\d+)/;
+    ( $anum || 0 ) <=> ( $bnum || 0 );
+}
+
 foreach my $k (keys(%ignore_fields)) {
     if ($k =~ /[xX]/ && $k =~ /^([0-9x])([0-9x])([0-9x])(.*)$/i) {
         my ($p1, $p2, $p3, $p4) = ($1, $2, $3, $4);
@@ -272,7 +277,7 @@ foreach my $tf (@treefields) {
                     my $pospos = $postmp{'-pos'};
                     my $poscodes = $postmp{'-codes'};
 
-                    $field_data{$auth_or_bibs}{'regex'}{$dat{'-tag'}}{int($pospos)} = qr/\Q$poscodes\E/;
+                    $field_data{$auth_or_bibs}{'regex'}{$dat{'-tag'}}{int($pospos)} = $poscodes;
                 }
             }
 
@@ -290,7 +295,7 @@ foreach my $tmp (keys(%allow_indicators)) {
 
 
 MARC::Charset->assume_unicode(1);
-
+MARC::Field->allow_controlfield_tags('ldr');
 
 sub check_marc {
     my $id = shift;
@@ -306,6 +311,8 @@ sub check_marc {
     my %undeffs;
 
     my @errors;
+
+    $record->append_fields(MARC::Field->new('ldr', $record->leader()));
 
     foreach my $f ($record->field('...')) {
 	my $fi = $f->{'_tag'};
@@ -331,18 +338,18 @@ sub check_marc {
 
 	    if (defined($field_data{$auth_or_bibs}{'regex'}{$fi})) {
 		my $data = $f->data();
-		foreach my $k (sort(keys(%{$field_data{$auth_or_bibs}{'regex'}{$fi}}))) {
+		foreach my $k (sort(sort_by_number keys(%{$field_data{$auth_or_bibs}{'regex'}{$fi}}))) {
 		    my $s;
 		    if ($k =~ /^\d+$/) {
-			$s = substr($data, $k, 1) || "";
+			$s = substr($data, scalar($k), 1);
 			if ($s !~ /$field_data{$auth_or_bibs}{'regex'}{$fi}{$k}/) {
-			    push(@errors, "field $fi position $k value at pos: \"$s\"");
+			    push(@errors, "$fi/$k illegal value \"$s\", should be '$field_data{$auth_or_bibs}{'regex'}{$fi}{$k}'");
 			    next;
 			}
 		    } else {
 			$s = $data || "";
 			if ($s !~ /$field_data{$auth_or_bibs}{'regex'}{$fi}{$k}/) {
-			    push(@errors, "field $fi illegal value \"$s\" does not match $field_data{$auth_or_bibs}{'regex'}{$fi}{$k}");
+			    push(@errors, "$fi illegal value \"$s\", does not match '$field_data{$auth_or_bibs}{'regex'}{$fi}{$k}'");
 			    next;
 			}
 		    }
@@ -350,7 +357,7 @@ sub check_marc {
 	    }
 	}
 
-	next if ((scalar($fi) < 10) || (lc($fi) eq 'ldr'));
+	next if ((lc($fi) eq 'ldr') || (scalar($fi) < 10));
 
 	$mainf{$fi} = 0 if (!defined($mainf{$fi}));
 	$mainf{$fi}++;
