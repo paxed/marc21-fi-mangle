@@ -400,7 +400,7 @@ sub check_marc {
     if (defined($biburl)) {
         print "<li><a href='".sprintf($biburl, $id)."'>$id</a>: (".join(', ', @errors).")\n" if (@errors);
     } else {
-        print STDERR "ERROR: id=$id (".join(', ', @errors).")\n" if (@errors);
+        print "id=$id (".join(', ', @errors).")\n" if (@errors);
     }
 }
 
