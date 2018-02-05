@@ -11,6 +11,7 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
   <xsl:element name="fields">
   <xsl:copy>
     <xsl:apply-templates select="document('data/aukt-000.xml')/fields"/>
+    <xsl:apply-templates select="document('data/aukt-00X.xml')/fields"/>
     <xsl:apply-templates select="document('data/aukt-01X-09X.xml')/fields"/>
     <xsl:apply-templates select="document('data/aukt-1XX.xml')/fields"/>
     <xsl:apply-templates select="document('data/aukt-2XX-3XX.xml')/fields"/>
