@@ -8,9 +8,14 @@ marc_warnings.pl will report MARC format errors in your database.
 It uses the processed XML files for field repeatability and indicator checks.
 
 
+Example
+-------
+    $ ./get_fi_xmls.sh
+    $ perl marc_warnings.pl --ignore=9xx > warnings.txt
+
+
 Output files
 ------------
-
 marcedit-tooltips.xml
 	File used in the Evergreen MARC editor for tooltips.
 koha_db_fi.sql
