@@ -298,8 +298,7 @@ MARC::Charset->assume_unicode(1);
 MARC::Field->allow_controlfield_tags('ldr');
 
 sub check_marc {
-    my $id = shift;
-    my $marc = shift;
+    my ($id, $marc, $urllink) = @_;
 
     my $record;
     eval {
@@ -405,7 +404,7 @@ sub check_marc {
 
 
     if (defined($biburl)) {
-        print "<li><a href='".sprintf($biburl, $id)."'>$id</a>: (".join(', ', @errors).")\n" if (@errors);
+        print "<li><a href='".sprintf($biburl, $id)."'>$urllink</a>: (".join(', ', @errors).")\n" if (@errors);
     } else {
         print "id=$id (".join(', ', @errors).")\n" if (@errors);
     }
@@ -442,7 +441,8 @@ while (my $ref = $sth->fetchrow_hashref()) {
 	    print "\n$i" if (!($i % 100));
 	    print ".";
 	}
-	check_marc($ref->{'id'}, $ref->{'marc'});
+        $ref->{'urllink'} = $ref->{'id'} if (!defined($ref->{'urllink'}));
+	check_marc($ref->{'id'}, $ref->{'marc'}, $ref->{'urllink'});
 	$i++;
     }
 }
@@ -497,9 +497,11 @@ B<-bibs> option: data/aukt.xml or data/bibs.xml, respectively.
 
 =item B<-sql=text>
 
-Set the SQL query to perform. Must return two fields (id and marcxml). Default depends
-on the preset values used. For example, if you want the id this program reports to be the
+Set the SQL query to perform. Must return two fields (id and marcxml), and optionally third (urllink).
+Default depends on the preset values used. For example, if you want the id this program reports to be the
 contents of the 001 field, use -sql='select ExtractValue(marcxml, "//controlfield[@tag=001]") as id, marcxml as marc from auth_header order by id asc'
+The urllink is used as the biblio url link when outputting HTML, and if it doesn't exist,
+then the id is used instead.
 
 =item B<-ignore=fieldspecs>
 
