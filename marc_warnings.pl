@@ -14,6 +14,7 @@ my %dbdata = (
     'username' => 'kohaadmin',
     'password' => 'katikoan',
     'dbname' => 'koha',
+    'mysql_socket' => undef,
     'driver' => 'mysql'
     );
 
@@ -160,7 +161,7 @@ my $auth_or_bibs = 'bibs';
 my $koha_or_eg = 'koha';
 
 GetOptions(
-    'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (defined($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting."); } },
+    'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (exists($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting '".$onam."'."); } },
     'xml=s' => \$marc_xml,
     'sql=s' => \$sqlquery,
     'v|verbose' => \$verbose,
@@ -411,7 +412,15 @@ sub check_marc {
 }
 
 sub db_connect {
-    my $dbh = DBI->connect("DBI:" . $dbdata{'driver'} . ":dbname=" . $dbdata{'dbname'} . ";host=" . $dbdata{'hostname'}, $dbdata{'username'}, $dbdata{'password'}, {'RaiseError' => 1, mysql_enable_utf8 => 1});
+    my $s = "DBI:" . $dbdata{'driver'} . ":dbname=" . $dbdata{'dbname'};
+
+    if (defined($dbdata{'mysql_socket'})) {
+        $s .= ";mysql_socket=" . $dbdata{'mysql_socket'};
+    } else {
+        $s .= ";host=" . $dbdata{'hostname'};
+    }
+
+    my $dbh = DBI->connect($s, $dbdata{'username'}, $dbdata{'password'}, {'RaiseError' => 1, mysql_enable_utf8 => 1});
     if (!$dbh) {
 	print "DB Error.";
 	footer();
@@ -517,7 +526,7 @@ Do not test fixed field lengths or data validity.
 =item B<-db setting=value>
 
 Set database settings. Available settings and default values are hostname ("localhost"),
-username ("kohaadmin"), password ("katikoan"), dbname ("koha"), and driver ("mysql").
+username ("kohaadmin"), password ("katikoan"), dbname ("koha"), mysql_socket (no default value), and driver ("mysql").
 
 =back
 
