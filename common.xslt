@@ -5,6 +5,8 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 
 <xsl:output method="xml" version="1.0" encoding="UTF-8" indent="yes"/>
 
+<xsl:variable name="AddNames" select="'true'"/>
+
 <xsl:template match="/fields">
     <xsl:for-each select="//datafields/datafield|//controlfields/controlfield[@repeatable]">
       <xsl:choose>
@@ -26,8 +28,10 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
       <xsl:element name="field">
         <xsl:attribute name="tag">ldr</xsl:attribute>
         <xsl:attribute name="repeatable">false</xsl:attribute>
-        <xsl:element name="name"><xsl:value-of select="../title"/></xsl:element>
-        <xsl:element name="description"><xsl:value-of select="../title"/></xsl:element>
+        <xsl:if test="$AddNames='true'">
+          <xsl:element name="name"><xsl:value-of select="../title"/></xsl:element>
+          <xsl:element name="description"><xsl:value-of select="../title"/></xsl:element>
+        </xsl:if>
         <xsl:for-each select="./positions/position[@pos]">
           <xsl:call-template name="output_ldr_pos">
             <xsl:with-param name="POS" select="./@pos"/>
@@ -119,8 +123,10 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
            <xsl:with-param name="REPEATABLE" select="./@repeatable"/>
          </xsl:call-template>
        </xsl:attribute>
-       <xsl:element name="name"><xsl:value-of select="./name"/></xsl:element>
-       <xsl:element name="description"><xsl:value-of select="./description"/></xsl:element>
+       <xsl:if test="$AddNames='true'">
+         <xsl:element name="name"><xsl:value-of select="./name"/></xsl:element>
+         <xsl:element name="description"><xsl:value-of select="./description"/></xsl:element>
+       </xsl:if>
        <xsl:call-template name="parse_indicators" />
        <xsl:call-template name="parse_subfields" />
      </xsl:element>
@@ -150,7 +156,9 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
    <xsl:element name="indicator">
    <xsl:attribute name="position"><xsl:value-of select="$POS"/></xsl:attribute>
    <xsl:attribute name="value"><xsl:value-of select="@code"/></xsl:attribute>
-   <xsl:element name="description"><xsl:apply-templates select="description"/></xsl:element>
+   <xsl:if test="$AddNames='true'">
+     <xsl:element name="description"><xsl:apply-templates select="description"/></xsl:element>
+   </xsl:if>
    </xsl:element>
   </xsl:for-each>
 </xsl:template>
@@ -206,10 +214,12 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
            <xsl:with-param name="REPEATABLE" select="$REPEATABLE"/>
          </xsl:call-template>
        </xsl:attribute>
-       <xsl:element name="description">
-         <xsl:value-of select="name"/><!--<xsl:if test="description">: </xsl:if>
-         <xsl:apply-templates select="description"/>-->
-       </xsl:element>
+       <xsl:if test="$AddNames='true'">
+         <xsl:element name="description"><xsl:value-of select="name"/>
+         <!--<xsl:if test="description">: </xsl:if>
+             <xsl:apply-templates select="description"/>-->
+         </xsl:element>
+       </xsl:if>
      </xsl:element>
    </xsl:otherwise>
  </xsl:choose>
