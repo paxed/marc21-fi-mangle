@@ -298,6 +298,17 @@ foreach my $tmp (keys(%allow_indicators)) {
 MARC::Charset->assume_unicode(1);
 MARC::Field->allow_controlfield_tags('ldr');
 
+sub output_err {
+    my ($id, $urllink, $errs) = @_;
+    my @errors = @{$errs};
+
+    if (defined($biburl)) {
+        print "<li><a href='".sprintf($biburl, $id)."'>$urllink</a>: (".join(', ', @errors).")\n" if (@errors);
+    } else {
+        print "id=$id (".join(', ', @errors).")\n" if (@errors);
+    }
+}
+
 sub check_marc {
     my ($id, $marc, $urllink) = @_;
 
@@ -305,6 +316,11 @@ sub check_marc {
     eval {
 	$record = MARC::Record->new_from_xml($marc);
     };
+    if ($@) {
+        my @err = ("MARC record error");
+        output_err($id, $urllink, \@err);
+        return;
+    }
 
     my %mainf;
     my %inderrs;
@@ -403,12 +419,7 @@ sub check_marc {
 	push(@errors, (($mainf{$k} > 1) ? $mainf{$k}.'x' : '').$k) if (($mainf{$k} > 1) && defined($not_repeatable{$k}));
     }
 
-
-    if (defined($biburl)) {
-        print "<li><a href='".sprintf($biburl, $id)."'>$urllink</a>: (".join(', ', @errors).")\n" if (@errors);
-    } else {
-        print "id=$id (".join(', ', @errors).")\n" if (@errors);
-    }
+    output_err($id, $urllink, \@errors);
 }
 
 sub db_connect {
