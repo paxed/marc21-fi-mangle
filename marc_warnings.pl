@@ -53,8 +53,6 @@ my %field_data = (
 		'2' => qr/\d/,
 		'3' => qr/\d/,
 		'4' => qr/\d/,
-		'10' => qr/[2]/,
-		'11' => qr/[2]/,
 		'12' => qr/\d/,
 		'13' => qr/\d/,
 		'14' => qr/\d/,
@@ -81,8 +79,6 @@ my %field_data = (
 		'4' => qr/\d/,
 		'7' => qr/[ ]/,
 		'8' => qr/[ ]/,
-		'10' => qr/[2]/,
-		'11' => qr/[2]/,
 		'12' => qr/\d/,
 		'13' => qr/\d/,
 		'14' => qr/\d/,
@@ -286,8 +282,6 @@ foreach my $tf (@treefields) {
     }
 }
 
-$field_data{$auth_or_bibs}{'regex'}{'ldr'}{10} = qr/[2]/;
-$field_data{$auth_or_bibs}{'regex'}{'ldr'}{11} = qr/[2]/;
 
 # indicators are listed as sets of allowed chars. eg. ' ab' or '1-9'
 foreach my $tmp (keys(%allow_indicators)) {
