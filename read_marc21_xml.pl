@@ -214,36 +214,71 @@ sub fix_regex_data {
             }
 
             if ($rdat eq 'ARRAY') {
-                if ($srkeylen == 1) {
-                    my $okay_to_regex = 1;
-                    for (my $idx = 0; $idx < scalar(@{$dat}); $idx++) {
-                        $okay_to_regex = 0 if (length(@{$dat}[$idx]) != 1);
-                    }
-                    if ($okay_to_regex) {
+                # Could replace all this with List::Regexp
+
+                my $okay_to_regex = 1;
+                for (my $idx = 0; $idx < scalar(@{$dat}); $idx++) {
+                    $okay_to_regex = 0 if (length(@{$dat}[$idx]) != $srkeylen);
+                }
+                if ($okay_to_regex) {
+                    if ($srkeylen == 1) {
                         my $s = join('', @{$dat});
                         $re{$rekey}{$srkey} = qr/[$s]/;
-                        next;
+                    } else {
+                        for (my $idx = 0; $idx < scalar(@{$dat}); $idx++) {
+                            @{$dat}[$idx] =~ s/\|/\\|/g;
+                        }
+                        my $s = join('|', @{$dat});
+                        $re{$rekey}{$srkey} = qr/^($s)$/;
                     }
+                    next;
                 }
+
+                my %reparts;
                 for (my $idx = 0; $idx < scalar(@{$dat}); $idx++) {
                     my $val = @{$dat}[$idx];
-                    next if (ref($val) eq 'Regexp');
-                    next if (length($val) == $srkeylen);
-                    next if (length($val) == 1);
 
                     if ($val =~ /^\d-\d$/) {
-                        @{$dat}[$idx] = qr/^[$val]+$/;
+                        my $val = "[$val]+";
+                        @{$dat}[$idx] = $val;
+                        $reparts{'x'} = () if (!defined($reparts{'x'}));
+                        push(@{$reparts{'x'}}, $val);
                         next;
                     }
-
-                    # Ugh!
                     if ($val eq '001-999') {
-                        @{$dat}[$idx] = qr/[0-9][0-9][1-9]/;
+                        my $val =  "[0-9][0-9][1-9]";
+                        @{$dat}[$idx] = $val;
+                        $reparts{'x'} = () if (!defined($reparts{'x'}));
+                        push(@{$reparts{'x'}}, $val);
                         next;
                     }
 
-                    print "Unhandled: $rekey/$srkey [value:\"".$val."\"]\n";
+                    my $lval = length($val);
+
+                    $val =~ s/\|/\\|/g;
+
+                    $reparts{$lval} = () if (!defined($reparts{$lval}));
+                    push(@{$reparts{$lval}}, $val);
+
                 }
+
+                my @restr;
+                for my $key (sort keys(%reparts)) {
+                    if ($key eq 'x') {
+                        push(@restr, @{$reparts{$key}});
+                    } elsif (int($key) == $srkeylen) {
+                        push(@restr, @{$reparts{$key}});
+                    } else {
+                        my $reps = ($srkeylen / int($key));
+                        my $s;
+                        $s = '(' . join('|', @{$reparts{$key}}) . '){'.int($reps).'}';
+                        push(@restr, $s);
+                    }
+                }
+
+                my $s = join('|', @restr);
+                $re{$rekey}{$srkey} = qr/^($s)$/;
+
             } else {
                 #warn "marc21 format regex is not array"
             }
