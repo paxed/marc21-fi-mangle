@@ -33,15 +33,83 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
           <xsl:element name="description"><xsl:value-of select="../title"/></xsl:element>
         </xsl:if>
         <xsl:for-each select="./positions/position[@pos]">
-          <xsl:call-template name="output_ldr_pos">
+          <xsl:call-template name="output_fixedfield_pos">
             <xsl:with-param name="POS" select="./@pos"/>
+            <xsl:with-param name="MAX" select="./@pos"/>
           </xsl:call-template>
         </xsl:for-each>
       </xsl:element>
     </xsl:for-each>
 </xsl:template>
 
-<xsl:template name="output_ldr_pos">
+<xsl:template name="output_fixedfield_pos">
+  <xsl:param name="POS"/>
+  <xsl:param name="MAX"/>
+  <xsl:choose>
+    <xsl:when test="contains($POS, '-')">
+      <xsl:call-template name="output_fixedfield_pos">
+        <xsl:with-param name="POS" select="substring-before($POS, '-')"/>
+        <xsl:with-param name="MAX" select="substring-after($POS, '-')"/>
+      </xsl:call-template>
+    </xsl:when>
+    <!--<xsl:when test="($POS = '00') or (number($POS) = 0)">
+      <xsl:call-template name="output_fixedfield_pos_core">
+        <xsl:with-param name="POS" select="$POS"/>
+      </xsl:call-template>
+    </xsl:when>-->
+    <xsl:when test="number($POS) &lt; number($MAX)">
+      <xsl:call-template name="output_fixedfield_pos_core">
+        <xsl:with-param name="POS" select="$POS"/>
+      </xsl:call-template>
+      <xsl:call-template name="output_fixedfield_pos">
+        <xsl:with-param name="POS" select="number($POS) + 1"/>
+        <xsl:with-param name="MAX" select="$MAX"/>
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:when test="number($POS) = number($MAX)">
+      <xsl:call-template name="output_fixedfield_pos_core">
+        <xsl:with-param name="POS" select="$POS"/>
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:call-template name="output_fixedfield_pos_core">
+        <xsl:with-param name="POS" select="$POS"/>
+      </xsl:call-template>
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
+
+<xsl:template name="output_fixedfield_pos_core">
+  <xsl:param name="POS"/>
+  <xsl:choose>
+    <xsl:when test="string-length($POS) &lt; 2">
+      <xsl:call-template name="output_fixedfield_pos_core">
+        <xsl:with-param name="POS" select="concat('0',$POS)"/>
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:element name="position">
+        <xsl:attribute name="pos"><xsl:value-of select="$POS"/></xsl:attribute>
+        <xsl:attribute name="codes">
+          <xsl:text>[</xsl:text>
+          <xsl:for-each select="./values/value[@code]">
+            <xsl:choose>
+              <xsl:when test="contains(./@code,'#')">
+                <xsl:text> </xsl:text>
+              </xsl:when>
+              <xsl:otherwise>
+                <xsl:value-of select="./@code"/>
+              </xsl:otherwise>
+            </xsl:choose>
+          </xsl:for-each>
+          <xsl:text>]</xsl:text>
+        </xsl:attribute>
+      </xsl:element>
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
+
+<xsl:template name="output_fixedfield_pos_BAK">
   <xsl:param name="POS"/>
   <xsl:choose>
     <xsl:when test="string-length($POS) = 2">
@@ -123,10 +191,19 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
            <xsl:with-param name="REPEATABLE" select="./@repeatable"/>
          </xsl:call-template>
        </xsl:attribute>
+       <xsl:if test="./@type">
+         <xsl:attribute name="type"><xsl:value-of select="./@type"/></xsl:attribute>
+       </xsl:if>
        <xsl:if test="$AddNames='true'">
          <xsl:element name="name"><xsl:value-of select="./name"/></xsl:element>
          <xsl:element name="description"><xsl:value-of select="./description"/></xsl:element>
        </xsl:if>
+       <xsl:for-each select="./positions/position[@pos]">
+         <xsl:call-template name="output_fixedfield_pos">
+           <xsl:with-param name="POS" select="./@pos"/>
+           <xsl:with-param name="MAX" select="./@pos"/>
+         </xsl:call-template>
+       </xsl:for-each>
        <xsl:call-template name="parse_indicators" />
        <xsl:call-template name="parse_subfields" />
      </xsl:element>
