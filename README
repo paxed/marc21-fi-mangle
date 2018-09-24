@@ -1,11 +1,10 @@
 These scripts are used to grab the translated MARC21 biblio and authority
 field descriptions from the Finnish National Library, and converted into
-different formats for use in both Evergreen and Koha.
+different formats for use in Koha.
 
-get_fi_xmls.sh will download the xml files and process them.
+get_fi_xmls.sh will download the xml files.
 
 marc_warnings.pl will report MARC format errors in your database.
-It uses the processed XML files for field repeatability and indicator checks.
 
 
 Example
@@ -14,19 +13,10 @@ Example
     $ perl marc_warnings.pl --ignore=9xx > warnings.txt
 
 
-Output files
-------------
-marcedit-tooltips.xml
-	File used in the Evergreen MARC editor for tooltips.
-koha_db_fi.sql
-	SQL statements to update the Koha marc and authority
-	field descriptions.
-
-
 Requirements
 ------------
 Debian:
-  sudo apt-get install libxml-treepp-perl libmarc-xml-perl libmarc-record-perl xsltproc
+  sudo apt-get install libmarc-xml-perl libmarc-record-perl
 
 
 

@@ -22,15 +22,3 @@ function getfiles() {
 
 getfiles $BIBDIR $BIBFILES
 getfiles $AUKDIR $AUKFILES
-
-
-xsltproc bib.xslt data/$BIBDIR-000.xml > data/bibs.xml
-xsltproc aukt.xslt data/$AUKDIR-000.xml > data/aukt.xml
-
-# Evergreen uses marcedit-tooltips.xml
-cp data/bibs.xml marcedit-tooltips.xml
-
-# Create SQL to update Koha marc and auth field descriptions to finnish
-perl koha-marcfields_to_db.pl > koha_db_fi.sql
-perl koha-authfields_to_db.pl >> koha_db_fi.sql
-

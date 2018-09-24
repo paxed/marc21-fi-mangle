@@ -7,7 +7,7 @@ use MARC::Record;
 use MARC::File::XML (BinaryEncoding => 'UTF-8');
 use MARC::Charset;
 use DBI;
-use XML::TreePP;
+use XML::Simple;
 
 my %dbdata = (
     'hostname' => 'localhost',
@@ -21,57 +21,66 @@ my %dbdata = (
 my %presets = (
     'koha-auth' => {
 	'sql' => 'select ExtractValue(marcxml, "//controlfield[@tag=001]") as id, marcxml as marc from auth_header order by id asc',
-	'xml' => './data/aukt.xml'
     },
     'koha-bibs' => {
-	'sql' => 'select biblionumber as id, marcxml as marc from biblioitems order by id asc',
-	'xml' => './data/bibs.xml'
+	'sql' => 'select biblionumber as id, metadata as marc from biblio_metadata order by id asc',
     },
     'eg-auth' => {
 	'sql' => 'select id, marc from authority.record_entry order by id asc',
-	'xml' => './data/aukt.xml'
     },
     'eg-bibs' => {
 	'sql' => 'select id, marc from biblio.record_entry order by id asc',
-	'xml' => './data/bibs.xml'
     }
+    );
+
+my %xml_globs = (
+    'bibs' => './data/bib-*.xml',
+    'auth' => './data/aukt-*.xml'
     );
 
 # Could we grab these from the format description somehow?
 my %field_data = (
     'bibs' => {
+	'valid_fields' => {},
+	'not_repeatable' => {},
+	'allow_indicators' => {},
+	'typed' => {},
 	'fixed_length' => {
-	    'ldr' => 24,
+	    '000' => 24,
 	    '005' => 16,
 	    '006' => 18,
 	    '008' => 40
 	},
 	'regex' => {
-	    'ldr' => {
-		'0' => qr/\d/,
-		'1' => qr/\d/,
-		'2' => qr/\d/,
-		'3' => qr/\d/,
-		'4' => qr/\d/,
-		'12' => qr/\d/,
-		'13' => qr/\d/,
-		'14' => qr/\d/,
-		'15' => qr/\d/,
-		'16' => qr/\d/,
+	    '000' => {
+		'00' => qr/[0-9]/,
+		'01' => qr/[0-9]/,
+		'02' => qr/[0-9]/,
+		'03' => qr/[0-9]/,
+		'04' => qr/[0-9]/,
+		'12' => qr/[0-9]/,
+		'13' => qr/[0-9]/,
+		'14' => qr/[0-9]/,
+		'15' => qr/[0-9]/,
+		'16' => qr/[0-9]/,
 	    },
 	    '005' => {
-		'x' => qr/^\d{14}\.\d$/
+		'x' => qr/^[0-9]{14}\.[0-9]$/
 	    },
-	}
+	},
     },
     'auth' => {
+	'valid_fields' => {},
+	'not_repeatable' => {},
+	'allow_indicators' => {},
+	'typed' => {},
 	'fixed_length' => {
-	    'ldr' => 24,
+	    '000' => 24,
 	    '005' => 16,
 	    '008' => 40
 	},
 	'regex' => {
-	    'ldr' => {
+	    '000' => {
 		'0' => qr/\d/,
 		'1' => qr/\d/,
 		'2' => qr/\d/,
@@ -133,23 +142,36 @@ my %field_data = (
 		'37' => qr/[ |]/,
 		'38' => qr/[ sx|]/,
 		'39' => qr/[ cdu|]/,
-	    }
+	}
     }
     }
     );
 
+# convert 006/00 to material code
+my %convert_006_material = (
+    'a' => 'BK',
+    't' => 'BK',
+    'm' => 'CF',
+    's' => 'CR',
+    'e' => 'MP',
+    'f' => 'MP',
+    'c' => 'MU',
+    'd' => 'MU',
+    'i' => 'MU',
+    'j' => 'MU',
+    'p' => 'MX',
+    'g' => 'VM',
+    'k' => 'VM',
+    'o' => 'VM',
+    'r' => 'VM',
+    );
 
-my %valid_fields;
-my %not_repeatable;
-
-my %allow_indicators;
-
-my %ignore_fields;
+my $ignore_fields_param = '';
 my $help = 0;
 my $man = 0;
 my $verbose = 0;
 my $test_field_data = 1;
-my $marc_xml;
+my $xml_glob;
 my $sqlquery;
 my $biburl;
 
@@ -158,7 +180,7 @@ my $koha_or_eg = 'koha';
 
 GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (exists($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting '".$onam."'."); } },
-    'xml=s' => \$marc_xml,
+    'xml=s' => \$xml_glob,
     'sql=s' => \$sqlquery,
     'v|verbose' => \$verbose,
     'a|auth|authority|authorities' => sub { $auth_or_bibs = 'auth'; },
@@ -166,7 +188,7 @@ GetOptions(
     'koha' => sub { $koha_or_eg = 'koha'; },
     'nodata' => sub { $test_field_data = 0; },
     'eg|evergreen' => sub { $koha_or_eg = 'eg'; },
-    'ignore=s' => sub { my ($onam, $oval) = @_; foreach my $tmp (split/,/, $oval) { $ignore_fields{$tmp} = 1; } },
+    'ignore=s' => \$ignore_fields_param,
     'help|h|?' => \$help,
     'man' => \$man,
     'biburl|bibliourl=s' => \$biburl
@@ -178,7 +200,7 @@ pod2usage(-exitval => 0, -verbose => 2) if $man;
 if (defined($koha_or_eg) && defined($auth_or_bibs)) {
     my $tmp = $koha_or_eg.'-'.$auth_or_bibs;
     if (defined($presets{$tmp})) {
-	$marc_xml = $presets{$tmp}{'xml'} if (!defined($marc_xml));
+	$xml_glob = $xml_globs{$auth_or_bibs} if (!defined($xml_glob));
 	$sqlquery = $presets{$tmp}{'sql'} if (!defined($sqlquery));
     } else {
 	die("Unknown preset combination $tmp");
@@ -186,7 +208,7 @@ if (defined($koha_or_eg) && defined($auth_or_bibs)) {
 }
 
 die("No SQL query") if (!defined($sqlquery));
-die("No MARC21 format XML file") if (!defined($marc_xml));
+die("No MARC21 format XML file") if (!defined($xml_glob));
 
 
 sub sort_by_number {
@@ -195,8 +217,55 @@ sub sort_by_number {
     ( $anum || 0 ) <=> ( $bnum || 0 );
 }
 
-foreach my $k (keys(%ignore_fields)) {
-    if ($k =~ /[xX]/ && $k =~ /^([0-9x])([0-9x])([0-9x])(.*)$/i) {
+
+#################################################################
+################################################################
+
+sub get_field_tagntype {
+    my ($tag, $record) = @_;
+
+    if ($tag eq '006') {
+        my $f = $record->field('006');
+        if ($f) {
+            my $data = substr($f->data(), 0, 1) || '';
+            return $tag.'-'.$convert_006_material{$data} if (defined($convert_006_material{$data}));
+        }
+    } elsif ($tag eq '007') {
+        my $f = $record->field($tag);
+        if ($f) {
+            my $data = substr($f->data(), 0, 1) || '';
+            return $tag.'-'.$data if ($data ne '');
+        }
+    } elsif ($tag eq '008') {
+        my $ldr = $record->leader();
+        my $l6 = substr($ldr, 6, 1);
+        my $l7 = substr($ldr, 7, 1);
+        my $data = '';
+        $data = 'BK' if (($l6 eq 'a' || $l6 eq 't') && !($l7 eq 'b' || $l7 eq 'i' || $l7 eq 's'));
+        $data = 'CF' if ($l6 eq 'm');
+        $data = 'CR' if (($l6 eq 'a' || $l6 eq 't') &&  ($l7 eq 'b' || $l7 eq 'i' || $l7 eq 's'));
+        $data = 'MP' if ($l6 eq 'e' || $l6 eq 'f');
+        $data = 'MU' if ($l6 eq 'c' || $l6 eq 'd' || $l6 eq 'i' || $l6 eq 'j');
+        $data = 'MX' if ($l6 eq 'p');
+        $data = 'VM' if ($l6 eq 'g' || $l6 eq 'k' || $l6 eq 'o' || $l6 eq 'r');
+        return $tag.'-'.$data if ($data ne '');
+    }
+    return $tag;
+}
+
+sub generate_tag_sequence {
+    my ($tag) = @_;
+
+    my @fields;
+
+    if ($tag =~ /,/) {
+	foreach my $tmp (split(/,/, $tag)) {
+	    push(@fields, generate_tag_sequence($tmp));
+	}
+	return @fields;
+    }
+
+    if (defined($tag) && $tag =~ /x/i && $tag =~ /^([0-9x])([0-9x])([0-9x])(.*)$/i) {
         my ($p1, $p2, $p3, $p4) = ($1, $2, $3, $4);
         my @c1 = (($p1 =~ /x/i) ? 0..9 : $p1);
         my @c2 = (($p2 =~ /x/i) ? 0..9 : $p2);
@@ -206,95 +275,268 @@ foreach my $k (keys(%ignore_fields)) {
             foreach my $a2 (@c2) {
                 foreach my $a3 (@c3) {
                     my $fld = $a1.$a2.$a3.$p4;
-                    $ignore_fields{$fld} = 1;
+                    push @fields, $fld;
                 }
             }
         }
-        delete $ignore_fields{$k};
+    } else {
+        push @fields, $tag;
     }
+
+    return @fields;
 }
 
+sub parse_single_field {
+    my ($field, $data) = @_;
 
-my $tpp = XML::TreePP->new();
-$tpp->set( utf8_flag => 1 );
-my $tree = $tpp->parsefile($marc_xml);
+    #my $name = $field->{'name'};
+    my $tag = $field->{'tag'};
+    my $type = $field->{'type'} || '';
+    my $repeatable = $field->{'repeatable'} || 'N';
 
-my @treefields = $tree->{'fields'}{'field'};
+    if ($tag =~ /x/i) {
+        my @tags = generate_tag_sequence($tag);
+        foreach my $tmptag (@tags) {
+            $field->{'tag'} = $tmptag;
+            parse_single_field($field, $data);
+        }
+        return;
+    }
 
-foreach my $tf (@treefields) {
-    foreach my $tfx ($tf) {
-	my @arr = @{$tfx};
-	foreach my $tmph (@arr) {
-	    my %dat = %{$tmph};
-	    my $dsf = $dat{'subfield'};
-	    my $ind = $dat{'indicator'};
-            my $pos = $dat{'position'};
-	    my @dsfar;
-            $valid_fields{$dat{'-tag'}} = 1;
-	    $not_repeatable{$dat{'-tag'}} = 1 if ($dat{'-repeatable'} eq 'false');
-	    if (defined($dsf)) {
-		if (ref($dat{'subfield'}) eq 'ARRAY') {
-		    @dsfar = @{$dsf};
-		} else {
-		    @dsfar = $dsf;
-		}
-		foreach my $subfield (@dsfar) {
-		    my %datsf = %{$subfield};
-		    $not_repeatable{$dat{'-tag'}.$datsf{'-code'}} = 1 if ($datsf{'-repeatable'} eq 'false');
-		}
-	    }
+    my %valid_fields = %{$data->{'valid_fields'}};
+    my %not_repeatable = %{$data->{'not_repeatable'}};
+    my %allow_indicators = %{$data->{'allow_indicators'}};
+    my %typed_field = %{$data->{'typed'}};
+    my %regex_field = %{$data->{'regex'}};
 
-	    if (defined($ind)) {
-		my @indar;
-		if (ref($dat{'indicator'}) eq 'ARRAY') {
-		    @indar = @{$ind};
-		} else {
-		    @indar = $ind;
-		}
-		foreach my $indicator (@indar) {
-		    my %datind = %{$indicator};
-		    my $ipos = $datind{'-position'};
-		    my $ival = $datind{'-value'};
-		    $ival =~ s/#/ /;
-		    $allow_indicators{$dat{'-tag'}.$ipos} = '' if (!defined($allow_indicators{$dat{'-tag'}.$ipos}));
-		    $allow_indicators{$dat{'-tag'}.$ipos} .= $ival;
-		}
-	    }
+    $type = "-".$type if ($type ne '');
+    $typed_field{$tag} = 1 if ($type ne '');
 
-            if (defined($pos)) {
-                my @posar;
-                if (ref($dat{'position'}) eq 'ARRAY') {
-                    @posar = @{$pos};
+    $valid_fields{$tag} = 1;
+    $not_repeatable{$tag . $type} = 1 if ($repeatable eq 'N');
+
+    if (defined($field->{'indicators'}{'indicator'})) {
+        my $indicators = $field->{'indicators'}{'indicator'};
+        my @indicatorarr;
+
+        if (ref($indicators) eq 'ARRAY') {
+            @indicatorarr = @{$indicators};
+        } else {
+            @indicatorarr = $indicators;
+        }
+
+        foreach my $ind (@indicatorarr) {
+            my $ind_num = $ind->{'num'};
+            my $ind_values = $ind->{'values'}{'value'};
+            my @ind_valuearr;
+            my $allowed_ind_values = '';
+
+            next if (!defined($ind_values));
+
+            if (ref($ind_values) eq 'ARRAY') {
+                @ind_valuearr = @{$ind_values};
+            } else {
+                @ind_valuearr = $ind_values;
+            }
+            foreach my $indval (@ind_valuearr) {
+                my $ivcode = $indval->{'code'};
+                $ivcode =~ s/#/ /g;
+                $allowed_ind_values .= $ivcode;
+            }
+            $allow_indicators{$tag . $ind_num} = $allowed_ind_values;
+        }
+    }
+
+
+    if (defined($field->{'subfields'}{'subfield'})) {
+        my $subfields = $field->{'subfields'}{'subfield'};
+        my @subfieldarr;
+
+        if (ref($subfields) eq 'ARRAY') {
+            @subfieldarr = @{$subfields};
+        } else {
+            @subfieldarr = $subfields;
+        }
+
+        foreach my $sf (@subfieldarr) {
+            my $sf_code = $sf->{'code'};
+            my $sf_repeatable = $sf->{'repeatable'};
+            my $sf_name = $sf->{'name'};
+
+            $valid_fields{$tag . $sf_code} = 1;
+            $not_repeatable{$tag . $sf_code . $type} = 1 if ($sf_repeatable eq 'N');
+        }
+    }
+
+    if (defined($field->{'positions'}{'position'})) {
+        my $positions = $field->{'positions'}{'position'};
+        my @positionarr;
+
+        if (ref($positions) eq 'ARRAY') {
+            @positionarr = @{$positions};
+        } else {
+            @positionarr = $positions;
+        }
+
+        foreach my $p (@positionarr) {
+            my $pos = $p->{'pos'};
+            my $equals = $p->{'equals'};
+            my @vals;
+
+            if (defined($p->{'values'}{'value'})) {
+                my $pvalues = $p->{'values'}{'value'};
+                my @pvaluearr;
+                if (ref($pvalues) eq 'ARRAY') {
+                    @pvaluearr = @{$pvalues};
                 } else {
-                    @posar = $pos;
+                    @pvaluearr = $pvalues;
+                }
+                foreach my $pv (@pvaluearr) {
+                    my $pv_code = $pv->{'code'};
+                    $pv_code =~ s/#/ /g;
+                    $regex_field{$tag . $type}{$pos} = [] if (!defined($regex_field{$tag . $type}{$pos}));
+                    push @{$regex_field{$tag . $type}{$pos}}, $pv_code;
                 }
 
-                foreach my $position (@posar) {
-                    my %postmp = %{$position};
-                    my $pospos = $postmp{'-pos'};
-                    my $poscodes = $postmp{'-codes'};
-
-                    $field_data{$auth_or_bibs}{'regex'}{$dat{'-tag'}}{int($pospos)} = $poscodes;
+                if (defined($equals)) {
+                    my $eq_tag = $equals->{'tag'};
+                    my $eq_pos = $equals->{'positions'};
+                    $regex_field{$eq_tag . $type}{$eq_pos} = [] if (!defined($regex_field{$eq_tag . $type}{$eq_pos}));
+                    @{$regex_field{$eq_tag . $type}{$eq_pos}} = @{$regex_field{$tag . $type}{$pos}};
                 }
             }
+        }
+    }
 
-	}
+    $data->{'valid_fields'} = \%valid_fields;
+    $data->{'not_repeatable'} = \%not_repeatable;
+    $data->{'allow_indicators'} = \%allow_indicators;
+    $data->{'typed'} = \%typed_field;
+    $data->{'regex'} = \%regex_field;
+}
+
+sub parse_multiple_fields {
+    my ($fieldsref, $data) = @_;
+
+    my @fieldarr;
+
+    if (ref($fieldsref) eq 'ARRAY') {
+        @fieldarr = @{$fieldsref};
+    } else {
+        @fieldarr = $fieldsref;
+    }
+
+    foreach my $field (@fieldarr) {
+        parse_single_field($field, $data);
+    }
+}
+
+sub parse_xml_data {
+    my ($filename, $data) = @_;
+
+    my $tpp = XML::Simple->new();
+    my $tree = $tpp->XMLin($filename, KeyAttr => []);
+
+    if (defined($tree->{'leader-directory'})) {
+        $tree->{'leader-directory'}{'leader'}{'tag'} = '000';
+        parse_multiple_fields($tree->{'leader-directory'}{'leader'}, $data);
+    } elsif (defined($tree->{'controlfields'})) {
+        parse_multiple_fields($tree->{'controlfields'}{'controlfield'}, $data);
+    } elsif (defined($tree->{'datafields'})) {
+        parse_multiple_fields($tree->{'datafields'}{'datafield'}, $data);
+    } else {
+        #warn "parse_marc21_format_xml: unhandled file $filename";
     }
 }
 
 
-# indicators are listed as sets of allowed chars. eg. ' ab' or '1-9'
-foreach my $tmp (keys(%allow_indicators)) {
-    $allow_indicators{$tmp} = '[' . $allow_indicators{$tmp} . ']';
+sub fix_regex_data {
+    my ($data) = @_;
+
+    my %re = %{$data};
+
+    foreach my $rekey (sort keys(%re)) {
+        my %sr = %{$re{$rekey}};
+        foreach my $srkey (sort keys(%sr)) {
+            my $dat = $sr{$srkey};
+            my $rdat = ref($sr{$srkey});
+            next if ($rdat eq 'Regexp');
+
+            my $srkeylen = 1;
+            if ($srkey =~ /(\d+)-(\d+)/) {
+                my ($startpos, $endpos) = ($1, $2);
+                $srkeylen = ($endpos - $startpos) + 1;
+            }
+
+            if ($rdat eq 'ARRAY') {
+                my @vals;
+                for (my $idx = 0; $idx < scalar(@{$dat}); $idx++) {
+                    my $val = @{$dat}[$idx];
+                    if ($val =~ /^(\d+)-(\d+)$/) {
+                        push(@vals, ($1 .. $2));
+                        next;
+                    }
+                    push(@vals, $val);
+                }
+
+                my %reparts;
+                foreach my $val (@vals) {
+                    my $lval = length($val);
+                    $val =~ s/\|/\\|/g;
+                    $reparts{$lval} = () if (!defined($reparts{$lval}));
+                    push(@{$reparts{$lval}}, $val);
+                }
+
+                my @restr;
+                for my $key (sort keys(%reparts)) {
+                    if (int($key) == $srkeylen) {
+                        push(@restr, @{$reparts{$key}});
+                    } else {
+                        my $reps = ($srkeylen / int($key));
+                        if ($reps == int($reps)) {
+                            my $s = '(' . join('|', @{$reparts{$key}}) . '){'.int($reps).'}';
+                            push(@restr, $s);
+                        } else {
+                            print STDERR "Regexp repeat not an int: (".join('|', @{$reparts{$key}})."){".$reps."}";
+                        }
+                    }
+                }
+
+                my $s = join('|', @restr);
+                $re{$rekey}{$srkey} = qr/^($s)$/;
+
+            } else {
+                print STDERR "marc21 format regex is not array";
+            }
+        }
+    }
+    return $data;
 }
 
 
+my @xmlfiles = glob($xml_glob);
+foreach my $file (@xmlfiles) {
+    parse_xml_data($file, \%{$field_data{$auth_or_bibs}});
+}
+
+$field_data{$auth_or_bibs}{'regex'} = fix_regex_data($field_data{$auth_or_bibs}{'regex'});
+
+# indicators are listed as sets of allowed chars. eg. ' ab' or '1-9'
+foreach my $tmp (keys(%{$field_data{$auth_or_bibs}{'allow_indicators'}})) {
+    $field_data{$auth_or_bibs}{'allow_indicators'}{$tmp} = '[' . $field_data{$auth_or_bibs}{'allow_indicators'}{$tmp} . ']';
+}
+
+
+#################################################################
+################################################################
+
+my %ignore_fields = map { ($_ => 1) } generate_tag_sequence($ignore_fields_param);
+
 MARC::Charset->assume_unicode(1);
-MARC::Field->allow_controlfield_tags('ldr');
 
 sub output_err {
     my ($id, $urllink, $errs) = @_;
-    my @errors = @{$errs};
+    my @errors = sort @{$errs};
 
     if (defined($biburl)) {
         print "<li><a href='".sprintf($biburl, $id)."'>$urllink</a>: (".join(', ', @errors).")\n" if (@errors);
@@ -320,14 +562,22 @@ sub check_marc {
     my %inderrs;
     my %undeffs;
 
+    my %numfields;
+
     my @errors;
 
-    $record->append_fields(MARC::Field->new('ldr', $record->leader()));
+    my %valid_fields = %{$field_data{$auth_or_bibs}{'valid_fields'}};
+    my %not_repeatable = %{$field_data{$auth_or_bibs}{'not_repeatable'}};
+    my %allow_indicators = %{$field_data{$auth_or_bibs}{'allow_indicators'}};
+    my %typed_field = %{$field_data{$auth_or_bibs}{'typed'}};
+
+    #$record->append_fields(MARC::Field->new('ldr', $record->leader()));
 
     foreach my $f ($record->field('...')) {
 	my $fi = $f->{'_tag'};
+	my $fityp = get_field_tagntype($fi, $record);
 
-	next if (defined($ignore_fields{$fi}));
+	next if (defined($ignore_fields{$fi}) || defined($ignore_fields{$fityp}));
 
         if (!defined($valid_fields{$fi})) {
             $undeffs{$fi} = 1;
@@ -346,28 +596,59 @@ sub check_marc {
 		}
 	    }
 
-	    if (defined($field_data{$auth_or_bibs}{'regex'}{$fi})) {
+	    my @regexkeys;
+	    push(@regexkeys, $fi) if (defined($field_data{$auth_or_bibs}{'regex'}{$fi}));
+	    push(@regexkeys, $fityp) if ($fi ne $fityp && defined($field_data{$auth_or_bibs}{'regex'}{$fityp}));
+	    push(@regexkeys, $fi.'-kaikki') if (defined($field_data{$auth_or_bibs}{'regex'}{$fi.'-kaikki'}));
+	    if (scalar(@regexkeys)) {
 		my $data = $f->data();
-		foreach my $k (sort(sort_by_number keys(%{$field_data{$auth_or_bibs}{'regex'}{$fi}}))) {
+
+		foreach my $rk (sort @regexkeys ) {
 		    my $s;
-		    if ($k =~ /^\d+$/) {
-			$s = substr($data, scalar($k), 1);
-			if ($s !~ /$field_data{$auth_or_bibs}{'regex'}{$fi}{$k}/) {
-			    push(@errors, "$fi/$k illegal value \"$s\", should be '$field_data{$auth_or_bibs}{'regex'}{$fi}{$k}'");
-			    next;
-			}
-		    } else {
-			$s = $data || "";
-			if ($s !~ /$field_data{$auth_or_bibs}{'regex'}{$fi}{$k}/) {
-			    push(@errors, "$fi illegal value \"$s\", does not match '$field_data{$auth_or_bibs}{'regex'}{$fi}{$k}'");
-			    next;
+
+		    my $zf = $field_data{$auth_or_bibs}{'regex'}{$rk};
+		    my %ff = %{$zf};
+		    foreach my $ffk (sort(sort_by_number keys(%ff))) {
+
+			if ($ffk =~ /^\d+$/) {
+			    $s = substr($data, scalar($ffk), 1);
+
+			    if ($s !~ /$ff{$ffk}/) {
+				push(@errors, "$rk/$ffk illegal value \"$s\", should be '$ff{$ffk}'");
+				next;
+			    }
+			} elsif ($ffk =~ /^(\d+)-(\d+)$/) {
+			    my ($kstart, $kend) = (int($1), int($2));
+			    $s = substr($data, $kstart, $kend - $kstart + 1);
+
+			    if ($s !~ /$ff{$ffk}/) {
+				push(@errors, "$rk/$ffk illegal value \"$s\", should be '$ff{$ffk}'");
+				next;
+			    }
+			} else {
+			    $s = $data || "";
+
+			    if ($s !~ /$ff{$ffk}/) {
+				push(@errors, "$rk illegal value \"$s\", does not match '$ff{$ffk}'");
+				next;
+			    }
 			}
 		    }
 		}
 	    }
 	}
 
-	next if ((lc($fi) eq 'ldr') || (scalar($fi) < 10));
+	if ($typed_field{$fi}) {
+
+	    next if (defined($ignore_fields{$fityp}));
+
+	    if ($fityp ne $fi) {
+		$mainf{$fityp} = 0 if (!defined($mainf{$fityp}));
+		$mainf{$fityp}++;
+	    }
+	}
+
+	next if (scalar($fi) < 10);
 
 	$mainf{$fi} = 0 if (!defined($mainf{$fi}));
 	$mainf{$fi}++;

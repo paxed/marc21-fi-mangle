@@ -214,65 +214,36 @@ sub fix_regex_data {
             }
 
             if ($rdat eq 'ARRAY') {
-                # Could replace all this with List::Regexp
-
-                my $okay_to_regex = 1;
+                my @vals;
                 for (my $idx = 0; $idx < scalar(@{$dat}); $idx++) {
-                    $okay_to_regex = 0 if (length(@{$dat}[$idx]) != $srkeylen);
-                }
-                if ($okay_to_regex) {
-                    if ($srkeylen == 1) {
-                        my $s = join('', @{$dat});
-                        $re{$rekey}{$srkey} = qr/[$s]/;
-                    } else {
-                        for (my $idx = 0; $idx < scalar(@{$dat}); $idx++) {
-                            @{$dat}[$idx] =~ s/\|/\\|/g;
-                        }
-                        my $s = join('|', @{$dat});
-                        $re{$rekey}{$srkey} = qr/^($s)$/;
+                    my $val = @{$dat}[$idx];
+                    if ($val =~ /^(\d+)-(\d+)$/) {
+                        push(@vals, ($1 .. $2));
+                        next;
                     }
-                    next;
+                    push(@vals, $val);
                 }
 
                 my %reparts;
-                for (my $idx = 0; $idx < scalar(@{$dat}); $idx++) {
-                    my $val = @{$dat}[$idx];
-
-                    if ($val =~ /^\d-\d$/) {
-                        my $val = "[$val]+";
-                        @{$dat}[$idx] = $val;
-                        $reparts{'x'} = () if (!defined($reparts{'x'}));
-                        push(@{$reparts{'x'}}, $val);
-                        next;
-                    }
-                    if ($val eq '001-999') {
-                        my $val =  "[0-9][0-9][1-9]";
-                        @{$dat}[$idx] = $val;
-                        $reparts{'x'} = () if (!defined($reparts{'x'}));
-                        push(@{$reparts{'x'}}, $val);
-                        next;
-                    }
-
+                foreach my $val (@vals) {
                     my $lval = length($val);
-
                     $val =~ s/\|/\\|/g;
-
                     $reparts{$lval} = () if (!defined($reparts{$lval}));
                     push(@{$reparts{$lval}}, $val);
-
                 }
 
                 my @restr;
                 for my $key (sort keys(%reparts)) {
-                    if ($key eq 'x') {
-                        push(@restr, @{$reparts{$key}});
-                    } elsif (int($key) == $srkeylen) {
+                    if (int($key) == $srkeylen) {
                         push(@restr, @{$reparts{$key}});
                     } else {
                         my $reps = ($srkeylen / int($key));
-                        my $s;
-                        $s = '(' . join('|', @{$reparts{$key}}) . '){'.int($reps).'}';
-                        push(@restr, $s);
+                        if ($reps == int($reps)) {
+                            my $s = '(' . join('|', @{$reparts{$key}}) . '){'.int($reps).'}';
+                            push(@restr, $s);
+                        } else {
+                            print STDERR "Regexp repeat not an int: (".join('|', @{$reparts{$key}})."){".$reps."}";
+                        }
                     }
                 }
 
@@ -280,7 +251,7 @@ sub fix_regex_data {
                 $re{$rekey}{$srkey} = qr/^($s)$/;
 
             } else {
-                #warn "marc21 format regex is not array"
+                print STDERR "marc21 format regex is not array";
             }
         }
     }
