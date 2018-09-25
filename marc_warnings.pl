@@ -611,7 +611,7 @@ sub check_marc {
 		    foreach my $ffk (sort(sort_by_number keys(%ff))) {
 
 			if ($ffk =~ /^\d+$/) {
-			    $s = substr($data, scalar($ffk), 1);
+			    $s = length($data) < int($ffk) ? '' : substr($data, int($ffk), 1);
 
 			    if ($s !~ /$ff{$ffk}/) {
 				push(@errors, "$rk/$ffk illegal value \"$s\", should be '$ff{$ffk}'");
@@ -619,7 +619,7 @@ sub check_marc {
 			    }
 			} elsif ($ffk =~ /^(\d+)-(\d+)$/) {
 			    my ($kstart, $kend) = (int($1), int($2));
-			    $s = substr($data, $kstart, $kend - $kstart + 1);
+			    $s = length($data) < $kend ? '' : substr($data, $kstart, $kend - $kstart + 1);
 
 			    if ($s !~ /$ff{$ffk}/) {
 				push(@errors, "$rk/$ffk illegal value \"$s\", should be '$ff{$ffk}'");
