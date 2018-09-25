@@ -625,7 +625,7 @@ sub check_marc {
     my %allow_indicators = %{$field_data{$auth_or_bibs}{'allow_indicators'}};
     my %typed_field = %{$field_data{$auth_or_bibs}{'typed'}};
 
-    #$record->append_fields(MARC::Field->new('ldr', $record->leader()));
+    $record->append_fields(MARC::Field->new('000', $record->leader()));
 
     foreach my $f ($record->field('...')) {
 	my $fi = $f->{'_tag'};
