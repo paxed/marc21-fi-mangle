@@ -53,6 +53,7 @@ sub parse_single_field {
     my %allow_indicators = %{$data->{'allow_indicators'}};
     my %typed_field = %{$data->{'typed'}};
     my %regex_field = %{$data->{'regex'}};
+    my %allow_regex = %{$data->{'allow_regex'}};
 
     $type = "-".$type if ($type ne '');
     $typed_field{$tag} = 1 if ($type ne '');
@@ -141,6 +142,9 @@ sub parse_single_field {
                     $pv_code =~ s/#/ /g;
                     $regex_field{$tag . $type}{$pos} = [] if (!defined($regex_field{$tag . $type}{$pos}));
                     push @{$regex_field{$tag . $type}{$pos}}, $pv_code;
+
+                    $allow_regex{$tag . $type}{$pos} = [] if (!defined($allow_regex{$tag . $type}{$pos}));
+                    push @{$allow_regex{$tag . $type}{$pos}}, $pv_code;
                 }
 
                 if (defined($equals)) {
@@ -148,6 +152,9 @@ sub parse_single_field {
                     my $eq_pos = $equals->{'positions'};
                     $regex_field{$eq_tag . $type}{$eq_pos} = [] if (!defined($regex_field{$eq_tag . $type}{$eq_pos}));
                     @{$regex_field{$eq_tag . $type}{$eq_pos}} = @{$regex_field{$tag . $type}{$pos}};
+
+                    $allow_regex{$eq_tag . $type}{$eq_pos} = [] if (!defined($allow_regex{$eq_tag . $type}{$eq_pos}));
+                    @{$allow_regex{$eq_tag . $type}{$eq_pos}} = @{$allow_regex{$tag . $type}{$pos}};
                 }
             }
         }
@@ -158,6 +165,7 @@ sub parse_single_field {
     $data->{'allow_indicators'} = \%allow_indicators;
     $data->{'typed'} = \%typed_field;
     $data->{'regex'} = \%regex_field;
+    $data->{'allow_regex'} = \%allow_regex;
 }
 
 sub parse_multiple_fields {
@@ -258,12 +266,55 @@ sub fix_regex_data {
     return $data;
 }
 
+sub quoted_str_list {
+    my ($lst) = @_;
+    my $ret = '';
+    if (defined($lst)) {
+	my @arr = @{$lst};
+	my $haspipes = 0;
+	my $len = 0;
+	my %lens;
+	foreach my $tmp (@arr) {
+	    $haspipes = 1 if ($tmp =~ /\|/);
+	    $len = length($tmp) if ($len == 0);
+	    $len = -1 if ($len != length($tmp));
+	}
+	if (!$haspipes && $len != -1) {
+	    $ret = join('', @arr) if ($len == 1);
+	    $ret = join('|', @arr) if ($len > 1);
+	} elsif ($len != -1) {
+	    $ret = join('', @arr) if ($len == 1);
+	    $ret = join(',', @arr) if ($len > 1);
+	} else {
+	    $ret = join('","', @arr);
+	    $ret = '"'.$ret.'"' if ($ret ne '');
+	}
+    }
+    return '['.$ret.']';
+}
+
+sub fix_allow_regex_data {
+    my ($data) = @_;
+
+    my %re = %{$data};
+
+    foreach my $rekey (sort keys(%re)) {
+        my %sr = %{$re{$rekey}};
+        foreach my $srkey (sort keys(%sr)) {
+            my $dat = $sr{$srkey};
+            $re{$rekey}{$srkey} = quoted_str_list($dat);
+        }
+    }
+
+    return $data;
+}
 
 my %field_data = (
     'valid_fields' => {},
     'not_repeatable' => {},
     'allow_indicators' => {},
     'typed' => {},
+    'allow_regex' => {},
     'regex' => {
         '000' => {
 	    '00' => qr/[0-9]/,
@@ -296,8 +347,8 @@ foreach my $file (@xmlfiles) {
 
 
 $field_data{'regex'} = fix_regex_data($field_data{'regex'});
+$field_data{'allow_regex'} = fix_allow_regex_data($field_data{'allow_regex'});
 
 print Dumper(\%field_data);
 
 #print ref($field_data{'regex'}{'000'}{'00'});
-

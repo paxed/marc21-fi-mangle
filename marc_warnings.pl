@@ -51,6 +51,7 @@ my %field_data = (
 	    '006' => 18,
 	    '008' => 40
 	},
+        'allow_regex' => {},
 	'regex' => {
 	    '000' => {
 		'00' => qr/[0-9]/,
@@ -79,6 +80,7 @@ my %field_data = (
 	    '005' => 16,
 	    '008' => 40
 	},
+        'allow_regex' => {},
 	'regex' => {
 	    '000' => {
 		'0' => qr/\d/,
@@ -308,6 +310,7 @@ sub parse_single_field {
     my %allow_indicators = %{$data->{'allow_indicators'}};
     my %typed_field = %{$data->{'typed'}};
     my %regex_field = %{$data->{'regex'}};
+    my %allow_regex = %{$data->{'allow_regex'}};
 
     $type = "-".$type if ($type ne '');
     $typed_field{$tag} = 1 if ($type ne '');
@@ -396,6 +399,9 @@ sub parse_single_field {
                     $pv_code =~ s/#/ /g;
                     $regex_field{$tag . $type}{$pos} = [] if (!defined($regex_field{$tag . $type}{$pos}));
                     push @{$regex_field{$tag . $type}{$pos}}, $pv_code;
+
+                    $allow_regex{$tag . $type}{$pos} = [] if (!defined($allow_regex{$tag . $type}{$pos}));
+                    push @{$allow_regex{$tag . $type}{$pos}}, $pv_code;
                 }
 
                 if (defined($equals)) {
@@ -403,6 +409,9 @@ sub parse_single_field {
                     my $eq_pos = $equals->{'positions'};
                     $regex_field{$eq_tag . $type}{$eq_pos} = [] if (!defined($regex_field{$eq_tag . $type}{$eq_pos}));
                     @{$regex_field{$eq_tag . $type}{$eq_pos}} = @{$regex_field{$tag . $type}{$pos}};
+
+                    $allow_regex{$eq_tag . $type}{$eq_pos} = [] if (!defined($allow_regex{$eq_tag . $type}{$eq_pos}));
+                    @{$allow_regex{$eq_tag . $type}{$eq_pos}} = @{$allow_regex{$tag . $type}{$pos}};
                 }
             }
         }
@@ -413,6 +422,7 @@ sub parse_single_field {
     $data->{'allow_indicators'} = \%allow_indicators;
     $data->{'typed'} = \%typed_field;
     $data->{'regex'} = \%regex_field;
+    $data->{'allow_regex'} = \%allow_regex;
 }
 
 sub parse_multiple_fields {
@@ -513,6 +523,49 @@ sub fix_regex_data {
     return $data;
 }
 
+sub quoted_str_list {
+    my ($lst) = @_;
+    my $ret = '';
+    if (defined($lst)) {
+	my @arr = @{$lst};
+	my $haspipes = 0;
+	my $len = 0;
+	my %lens;
+	foreach my $tmp (@arr) {
+	    $haspipes = 1 if ($tmp =~ /\|/);
+	    $len = length($tmp) if ($len == 0);
+	    $len = -1 if ($len != length($tmp));
+	}
+	if (!$haspipes && $len != -1) {
+	    $ret = join('', @arr) if ($len == 1);
+	    $ret = join('|', @arr) if ($len > 1);
+	} elsif ($len != -1) {
+	    $ret = join('', @arr) if ($len == 1);
+	    $ret = join(',', @arr) if ($len > 1);
+	} else {
+	    $ret = join('","', @arr);
+	    $ret = '"'.$ret.'"' if ($ret ne '');
+	}
+    }
+    return '['.$ret.']';
+}
+
+sub fix_allow_regex_data {
+    my ($data) = @_;
+
+    my %re = %{$data};
+
+    foreach my $rekey (sort keys(%re)) {
+        my %sr = %{$re{$rekey}};
+        foreach my $srkey (sort keys(%sr)) {
+            my $dat = $sr{$srkey};
+            $re{$rekey}{$srkey} = quoted_str_list($dat);
+        }
+    }
+
+    return $data;
+}
+
 
 my @xmlfiles = glob($xml_glob);
 foreach my $file (@xmlfiles) {
@@ -520,6 +573,7 @@ foreach my $file (@xmlfiles) {
 }
 
 $field_data{$auth_or_bibs}{'regex'} = fix_regex_data($field_data{$auth_or_bibs}{'regex'});
+$field_data{$auth_or_bibs}{'allow_regex'} = fix_allow_regex_data($field_data{$auth_or_bibs}{'allow_regex'});
 
 # indicators are listed as sets of allowed chars. eg. ' ab' or '1-9'
 foreach my $tmp (keys(%{$field_data{$auth_or_bibs}{'allow_indicators'}})) {
@@ -610,11 +664,13 @@ sub check_marc {
 		    my %ff = %{$zf};
 		    foreach my $ffk (sort(sort_by_number keys(%ff))) {
 
+                        my $allow_vals = $field_data{$auth_or_bibs}{'allow_regex'}{$rk}{$ffk};
+
 			if ($ffk =~ /^\d+$/) {
 			    $s = length($data) < int($ffk) ? '' : substr($data, int($ffk), 1);
 
 			    if ($s !~ /$ff{$ffk}/) {
-				push(@errors, "$rk/$ffk illegal value \"$s\", should be '$ff{$ffk}'");
+				push(@errors, "$rk/$ffk illegal value \"$s\", should be $allow_vals");
 				next;
 			    }
 			} elsif ($ffk =~ /^(\d+)-(\d+)$/) {
@@ -622,14 +678,14 @@ sub check_marc {
 			    $s = length($data) < $kend ? '' : substr($data, $kstart, $kend - $kstart + 1);
 
 			    if ($s !~ /$ff{$ffk}/) {
-				push(@errors, "$rk/$ffk illegal value \"$s\", should be '$ff{$ffk}'");
+				push(@errors, "$rk/$ffk illegal value \"$s\", should be $allow_vals");
 				next;
 			    }
 			} else {
 			    $s = $data || "";
 
 			    if ($s !~ /$ff{$ffk}/) {
-				push(@errors, "$rk illegal value \"$s\", does not match '$ff{$ffk}'");
+				push(@errors, "$rk illegal value \"$s\", does not match $allow_vals");
 				next;
 			    }
 			}
