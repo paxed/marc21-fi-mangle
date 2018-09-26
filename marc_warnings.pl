@@ -176,6 +176,7 @@ my $test_field_data = 1;
 my $xml_glob;
 my $sqlquery;
 my $biburl;
+my $skip_enclevels = ''; # Encoding levels (ldr/17) values to skip the record
 
 my $auth_or_bibs = 'bibs';
 my $koha_or_eg = 'koha';
@@ -191,6 +192,7 @@ GetOptions(
     'nodata' => sub { $test_field_data = 0; },
     'eg|evergreen' => sub { $koha_or_eg = 'eg'; },
     'ignore=s' => \$ignore_fields_param,
+    'skip-enclevels=s' => \$skip_enclevels,
     'help|h|?' => \$help,
     'man' => \$man,
     'biburl|bibliourl=s' => \$biburl
@@ -612,6 +614,8 @@ sub check_marc {
         return;
     }
 
+    return if (index($skip_enclevels, substr($record->leader(),17,1)) != -1);
+
     my %mainf;
     my %inderrs;
     my %undeffs;
@@ -860,6 +864,12 @@ Ignore certain fields, subfields or indicators. For example:
   C<-ignore=590,028a,655.ind2,008.length,9xx>
 would ignore the field 590, subfield 028a, indicator 2 of field 655,
 length checking for field 008, and all 9XX fields.
+
+=item B<-skip-enclevels=str>
+
+Set the record encoding levels (000/17) which you want to skip. For example:
+  C<-skip-enclevels=78>
+would skip records with encoding level 7 or 8.
 
 =item B<-nodata>
 
