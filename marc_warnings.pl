@@ -9,6 +9,9 @@ use MARC::Charset;
 use DBI;
 use XML::Simple;
 
+use Data::Dumper;
+$Data::Dumper::Sortkeys = 1;
+
 my %dbdata = (
     'hostname' => 'localhost',
     'username' => 'kohaadmin',
@@ -177,6 +180,7 @@ my $xml_glob;
 my $sqlquery;
 my $biburl;
 my $skip_enclevels = ''; # Encoding levels (ldr/17) values to skip the record
+my $debug = 0;
 
 my $auth_or_bibs = 'bibs';
 my $koha_or_eg = 'koha';
@@ -193,6 +197,7 @@ GetOptions(
     'eg|evergreen' => sub { $koha_or_eg = 'eg'; },
     'ignore=s' => \$ignore_fields_param,
     'skip-enclevels=s' => \$skip_enclevels,
+    'debug' => \$debug,
     'help|h|?' => \$help,
     'man' => \$man,
     'biburl|bibliourl=s' => \$biburl
@@ -296,7 +301,7 @@ sub parse_single_field {
     #my $name = $field->{'name'};
     my $tag = $field->{'tag'};
     my $type = $field->{'type'} || '';
-    my $repeatable = $field->{'repeatable'} || 'N';
+    my $repeatable = $field->{'repeatable'} || '';
 
     if ($tag =~ /x/i) {
         my @tags = generate_tag_sequence($tag);
@@ -314,6 +319,7 @@ sub parse_single_field {
     my %regex_field = %{$data->{'regex'}};
     my %allow_regex = %{$data->{'allow_regex'}};
 
+    $type = '' if ($type eq 'yleista');
     $type = "-".$type if ($type ne '');
     $typed_field{$tag} = 1 if ($type ne '');
 
@@ -588,6 +594,12 @@ foreach my $tmp (keys(%{$field_data{$auth_or_bibs}{'allow_indicators'}})) {
 
 my %ignore_fields = map { ($_ => 1) } generate_tag_sequence($ignore_fields_param);
 
+if ($debug) {
+    print "ignore_fields:" . Dumper(\%ignore_fields);
+    print "field_data:" . Dumper(\%field_data);
+    exit;
+}
+
 MARC::Charset->assume_unicode(1);
 
 sub output_err {
@@ -722,6 +734,12 @@ sub check_marc {
 	    my $fikey = $fi.$key;
 
 	    next if (defined($ignore_fields{$fikey}));
+
+	    if (!defined($valid_fields{$fikey})) {
+		$undeffs{$fi . '$' . $key} = 1;
+		#push(@errors, "field $fikey not defined by format");
+		next;
+	    }
 
 	    $subff{$fikey} = 0 if (!defined($subff{$fikey}));
 	    $subff{$fikey}++;
@@ -870,6 +888,10 @@ length checking for field 008, and all 9XX fields.
 Set the record encoding levels (000/17) which you want to skip. For example:
   C<-skip-enclevels=78>
 would skip records with encoding level 7 or 8.
+
+=item B<-debug>
+
+Parse the XML files, output the internal state, and exit.
 
 =item B<-nodata>
 
