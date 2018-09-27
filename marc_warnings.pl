@@ -54,22 +54,22 @@ my %field_data = (
 	    '006' => 18,
 	    '008' => 40
 	},
-        'allow_regex' => {},
-	'regex' => {
+	'regex' => {},
+	'allow_regex' => {
 	    '000' => {
-		'00' => qr/[0-9]/,
-		'01' => qr/[0-9]/,
-		'02' => qr/[0-9]/,
-		'03' => qr/[0-9]/,
-		'04' => qr/[0-9]/,
-		'12' => qr/[0-9]/,
-		'13' => qr/[0-9]/,
-		'14' => qr/[0-9]/,
-		'15' => qr/[0-9]/,
-		'16' => qr/[0-9]/,
+		'00' => '[0-9]',
+		'01' => '[0-9]',
+		'02' => '[0-9]',
+		'03' => '[0-9]',
+		'04' => '[0-9]',
+		'12' => '[0-9]',
+		'13' => '[0-9]',
+		'14' => '[0-9]',
+		'15' => '[0-9]',
+		'16' => '[0-9]',
 	    },
 	    '005' => {
-		'x' => qr/^[0-9]{14}\.[0-9]$/
+		'x' => '^[0-9]{14}\.[0-9]$'
 	    },
 	},
     },
@@ -409,7 +409,11 @@ sub parse_single_field {
                     push @{$regex_field{$tag . $type}{$pos}}, $pv_code;
 
                     $allow_regex{$tag . $type}{$pos} = [] if (!defined($allow_regex{$tag . $type}{$pos}));
-                    push @{$allow_regex{$tag . $type}{$pos}}, $pv_code;
+		    if (ref($allow_regex{$tag . $type}{$pos}) eq 'ARRAY') {
+			push @{$allow_regex{$tag . $type}{$pos}}, $pv_code;
+		    } else {
+			print STDERR "allow_regex is not array for '$tag' '$type' '$pos' '$pv_code'";
+		    }
                 }
 
                 if (defined($equals)) {
@@ -419,7 +423,11 @@ sub parse_single_field {
                     @{$regex_field{$eq_tag . $type}{$eq_pos}} = @{$regex_field{$tag . $type}{$pos}};
 
                     $allow_regex{$eq_tag . $type}{$eq_pos} = [] if (!defined($allow_regex{$eq_tag . $type}{$eq_pos}));
-                    @{$allow_regex{$eq_tag . $type}{$eq_pos}} = @{$allow_regex{$tag . $type}{$pos}};
+		    if (ref($allow_regex{$eq_tag . $type}{$eq_pos}) eq 'ARRAY') {
+			@{$allow_regex{$eq_tag . $type}{$eq_pos}} = @{$allow_regex{$tag . $type}{$pos}};
+		    } else {
+			print STDERR "allow_regex equals is not array for '$eq_tag' '$type' '$eq_pos'"
+		    }
                 }
             }
         }
@@ -567,13 +575,31 @@ sub fix_allow_regex_data {
         my %sr = %{$re{$rekey}};
         foreach my $srkey (sort keys(%sr)) {
             my $dat = $sr{$srkey};
-            $re{$rekey}{$srkey} = quoted_str_list($dat);
+	    if (ref($dat) eq 'ARRAY') {
+		$re{$rekey}{$srkey} = quoted_str_list($dat);
+	    }
         }
     }
 
     return $data;
 }
 
+sub copy_allow_to_regex {
+    my ($allow, $regex) = @_;
+
+    my %al = %{$allow};
+    my %re = %{$regex};
+
+    foreach my $alkey (keys (%al)) {
+	foreach my $xlkey (sort keys (%{$al{$alkey}})) {
+	    $re{$alkey} = {} if (!defined($re{$alkey}));
+	    $re{$alkey}{$xlkey} = qr/$al{$alkey}{$xlkey}/ if (!defined($re{$alkey}{$xlkey}));
+	}
+    }
+    return \%re;
+}
+
+$field_data{$auth_or_bibs}{'regex'} = copy_allow_to_regex($field_data{$auth_or_bibs}{'allow_regex'}, $field_data{$auth_or_bibs}{'regex'});
 
 my @xmlfiles = glob($xml_glob);
 foreach my $file (@xmlfiles) {
