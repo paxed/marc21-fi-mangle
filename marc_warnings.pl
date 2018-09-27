@@ -635,8 +635,7 @@ sub check_marc {
 
 	if ($test_field_data) {
 	    my $key = $fi.'.length';
-	    next if (defined($ignore_fields{$key}));
-	    if (defined($field_data{$auth_or_bibs}{'fixed_length'}{$fi})) {
+	    if (!defined($ignore_fields{$key}) && defined($field_data{$auth_or_bibs}{'fixed_length'}{$fi})) {
 		my $tmp = $field_data{$auth_or_bibs}{'fixed_length'}{$fi};
 		if ($tmp != length($f->data())) {
 		    push(@errors, "$key=".length($f->data())."/$tmp");
