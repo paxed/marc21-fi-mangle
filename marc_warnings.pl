@@ -28,6 +28,9 @@ my %presets = (
     'koha-bibs' => {
 	'sql' => 'select biblionumber as id, metadata as marc from biblio_metadata order by id asc',
     },
+    'koha-hold' => {
+	'sql' => 'select holding_id as id, metadata as marc from holdings_metadata order by id asc',
+    },
     'eg-auth' => {
 	'sql' => 'select id, marc from authority.record_entry order by id asc',
     },
@@ -38,7 +41,8 @@ my %presets = (
 
 my %xml_globs = (
     'bibs' => './data/bib-*.xml',
-    'auth' => './data/aukt-*.xml'
+    'auth' => './data/aukt-*.xml',
+    'hold' => './data/hold-*.xml'
     );
 
 # Could we grab these from the format description somehow?
@@ -104,7 +108,16 @@ my %field_data = (
 		'x' => '^[0-9]{14}\.[0-9]$'
 	    },
         },
-    }
+    },
+    'hold' => {
+	'valid_fields' => {},
+	'not_repeatable' => {},
+	'allow_indicators' => {},
+	'typed' => {},
+	'fixed_length' => {},
+	'regex' => {},
+	'allow_regex' => {},
+    },
     );
 
 # convert 006/00 to material code
@@ -147,6 +160,7 @@ GetOptions(
     'v|verbose' => \$verbose,
     'a|auth|authority|authorities' => sub { $auth_or_bibs = 'auth'; },
     'b|bib|bibs|biblios' => sub { $auth_or_bibs = 'bibs'; },
+    'hold|holdings' => sub { $auth_or_bibs = 'hold'; },
     'koha' => sub { $koha_or_eg = 'koha'; },
     'nodata' => sub { $test_field_data = 0; },
     'eg|evergreen' => sub { $koha_or_eg = 'eg'; },
@@ -478,7 +492,7 @@ sub fix_regex_data {
                             my $s = '(' . join('|', @{$reparts{$key}}) . '){'.int($reps).'}';
                             push(@restr, $s);
                         } else {
-                            print STDERR "Regexp repeat not an int: (".join('|', @{$reparts{$key}})."){".$reps."}";
+                            print STDERR "ERROR: Regexp repeat for $rekey/$srkey does not fit: (".join('|', @{$reparts{$key}}).")\n";
                         }
                     }
                 }
