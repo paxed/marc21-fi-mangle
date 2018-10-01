@@ -75,8 +75,11 @@ my %field_data = (
 	    '005' => {
 		'x' => '^[0-9]{14}\.[0-9]$',
 	    },
+            '006' => {
+                '00' => '[acdefgijkmoprst]', # FIXME: Get these from format XML
+            },
             '007' => {
-                '00' => '[acdfghkmoqrstvz]',
+                '00' => '[acdfghkmoqrstvz]', # FIXME: Get these from format XML
             }
 	},
     },
@@ -203,7 +206,7 @@ sub get_field_tagntype {
     my ($tag, $record) = @_;
 
     if ($tag eq '006') {
-        my $f = $record->field('006');
+        my $f = $record->field($tag);
         if ($f) {
             my $data = substr($f->data(), 0, 1) || '';
             return $tag.'-'.$convert_006_material{$data} if (defined($convert_006_material{$data}));
@@ -219,6 +222,7 @@ sub get_field_tagntype {
         my $l6 = substr($ldr, 6, 1);
         my $l7 = substr($ldr, 7, 1);
         my $data = '';
+        # FIXME: Same as 006, but also checks ldr/07
         $data = 'BK' if (($l6 eq 'a' || $l6 eq 't') && !($l7 eq 'b' || $l7 eq 'i' || $l7 eq 's'));
         $data = 'CF' if ($l6 eq 'm');
         $data = 'CR' if (($l6 eq 'a' || $l6 eq 't') &&  ($l7 eq 'b' || $l7 eq 'i' || $l7 eq 's'));
