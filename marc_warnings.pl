@@ -205,20 +205,16 @@ sub sort_by_number {
 ################################################################
 
 sub get_field_tagntype {
-    my ($tag, $record) = @_;
+    my ($f, $record) = @_;
+
+    my $tag = $f->{'_tag'};
 
     if ($tag eq '006') {
-        my $f = $record->field($tag);
-        if ($f) {
-            my $data = substr($f->data(), 0, 1) || '';
-            return $tag.'-'.$convert_006_material{$data} if (defined($convert_006_material{$data}));
-        }
+        my $data = substr($f->data(), 0, 1) || '';
+        return $tag.'-'.$convert_006_material{$data} if (defined($convert_006_material{$data}));
     } elsif ($tag eq '007') {
-        my $f = $record->field($tag);
-        if ($f) {
-            my $data = substr($f->data(), 0, 1) || '';
-            return $tag.'-'.$data if ($data ne '');
-        }
+        my $data = substr($f->data(), 0, 1) || '';
+        return $tag.'-'.$data if ($data ne '');
     } elsif ($tag eq '008') {
         my $ldr = $record->leader();
         my $l6 = substr($ldr, 6, 1);
@@ -646,7 +642,7 @@ sub check_marc {
 
     foreach my $f ($record->field('...')) {
 	my $fi = $f->{'_tag'};
-	my $fityp = get_field_tagntype($fi, $record);
+	my $fityp = get_field_tagntype($f, $record);
 
 	next if (defined($ignore_fields{$fi}) || defined($ignore_fields{$fityp}));
 
