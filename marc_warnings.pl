@@ -152,6 +152,7 @@ my $sqlquery;
 my $biburl;
 my $skip_enclevels = ''; # Encoding levels (ldr/17) values to skip the record
 my $debug = 0;
+my $marcxml = '';
 
 my $auth_or_bibs = 'bibs';
 my $koha_or_eg = 'koha';
@@ -159,6 +160,7 @@ my $koha_or_eg = 'koha';
 GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (exists($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting '".$onam."'."); } },
     'xml=s' => \$xml_glob,
+    'marcxml=s' => \$marcxml,
     'sql=s' => \$sqlquery,
     'v|verbose' => \$verbose,
     'a|auth|authority|authorities' => sub { $auth_or_bibs = 'auth'; },
@@ -796,31 +798,38 @@ sub db_disconnect {
     $dbh->disconnect();
 }
 
-my $sth;
-my $dbh = db_connect();
+if ($marcxml ne '') {
+    open my $fh, '<', $marcxml or die "Can't open file $!";
+    my $file_content = do { local $/; <$fh> };
+    check_marc(0, $file_content, 0);
+} else {
 
-$sth = $dbh->prepare($sqlquery);
+    my $sth;
+    my $dbh = db_connect();
 
-$sth->execute();
+    $sth = $dbh->prepare($sqlquery);
 
-print "<html><head></head><body><ol>" if (defined($biburl));
+    $sth->execute();
 
-my $i = 1;
-while (my $ref = $sth->fetchrow_hashref()) {
-    if ($ref->{'id'}) {
-	if ($verbose) {
-	    print "\n$i" if (!($i % 100));
-	    print ".";
-	}
-        $ref->{'urllink'} = $ref->{'id'} if (!defined($ref->{'urllink'}));
-	check_marc($ref->{'id'}, $ref->{'marc'}, $ref->{'urllink'});
-	$i++;
+    print "<html><head></head><body><ol>" if (defined($biburl));
+
+    my $i = 1;
+    while (my $ref = $sth->fetchrow_hashref()) {
+        if ($ref->{'id'}) {
+            if ($verbose) {
+                print "\n$i" if (!($i % 100));
+                print ".";
+            }
+            $ref->{'urllink'} = $ref->{'id'} if (!defined($ref->{'urllink'}));
+            check_marc($ref->{'id'}, $ref->{'marc'}, $ref->{'urllink'});
+            $i++;
+        }
     }
+
+    print "</ol></body></html>" if (defined($biburl));
+
+    db_disconnect($dbh);
 }
-
-print "</ol></body></html>" if (defined($biburl));
-
-db_disconnect($dbh);
 
 
 __END__
@@ -865,6 +874,10 @@ Use %s as the biblio id number placeholder in the urlformat string.
 
 Set the XML file where MARC21 format rules are read from. Default depends on B<-auth> or
 B<-bibs> option: data/aukt.xml or data/bibs.xml, respectively.
+
+=item B<-marcxml=filename>
+
+Read a file containing single marcxml entry, and show warnings for it instead.
 
 =item B<-sql=text>
 
