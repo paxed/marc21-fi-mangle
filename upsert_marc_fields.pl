@@ -38,12 +38,14 @@ my %xml_globs = (
 
 my $xml_glob = '';
 my $ignore_fields_param = '';
+my $only_fields_param = '';
 my $help = 0;
 my $man = 0;
 my $verbose = 0;
 my $debug = 0;
 my $print = 0;
 my $insert = 0;
+my $update = 0;
 my $missing = 0;
 my $bib_or_auth = 'marc';
 my $frameworkcode = ' ';
@@ -52,12 +54,14 @@ GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (exists($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting '".$onam."'."); } },
     'v|verbose' => \$verbose,
     'ignore=s' => \$ignore_fields_param,
+    'onlyfields=s' => \$only_fields_param,
     'help|h|?' => \$help,
     'man' => \$man,
     'debug' => \$debug,
     'xml=s' => \$xml_glob,
     'print' => \$print,
     'insert' => \$insert,
+    'update' => \$update,
     'missing' => \$missing,
     'auth' => sub { $bib_or_auth = 'auth'; },
     'framework=s' => \$frameworkcode,
@@ -74,8 +78,10 @@ if ($xml_glob eq '') {
 
 
 my %ignore_fields = map { ($_ => 1) } generate_tag_sequence($ignore_fields_param);
+my %only_fields = map { ($_ => 1) } generate_tag_sequence($only_fields_param);
 my %field_data = ( ); # marc format data from xml
 my %tags = ( );  # tag/subfield data from the database
+
 
 
 #################################################################
@@ -185,6 +191,8 @@ sub handle_code {
 
     print "Ignored: $tag\n" if ($debug && $ignore_fields{$tag});
     return if ($ignore_fields{$tag});
+
+    return if (!$only_fields{$tag});
     
     print "$tag\t$name\trepeatable=$repeatable\n" if ($print);
     my %tmphash = (
@@ -300,8 +308,8 @@ sub uniq {
 }
 
 #
-# Lists tags that are missing from the db
-sub find_missing_tags {
+# Update tags in the db
+sub update_db_tags {
 
     my $sth;
     my $dbh = db_connect();
@@ -339,13 +347,35 @@ sub find_missing_tags {
 		    print "Missing:'".$fwc."' ".$ftag."\n";
 		}
 	    } else {
+		my %updatedata = ();
 		if ($tags{$tablename}{$fwc}{$tag}{$subfield}{'liblibrarian'} ne $field_data{$ftag}{'name'}) {
 		    print "Field $ftag description differs: Koha:'".$tags{$tablename}{$fwc}{$tag}{$subfield}{'liblibrarian'}."'  Format:'".$field_data{$ftag}{'name'}."'\n";
-		} elsif ($tags{$tablename}{$fwc}{$tag}{$subfield}{'libopac'} ne $field_data{$ftag}{'name'}) {
+		    $updatedata{'liblibrarian'} = $field_data{$ftag}{'name'};
+		}
+		if ($tags{$tablename}{$fwc}{$tag}{$subfield}{'libopac'} ne $field_data{$ftag}{'name'}) {
 		    print "Field $ftag OPAC description differs: Koha:'".$tags{$tablename}{$fwc}{$tag}{$subfield}{'libopac'}."'  Format:'".$field_data{$ftag}{'name'}."'\n";
+		    $updatedata{'libopac'} = $field_data{$ftag}{'name'};
 		}
 		if ($tags{$tablename}{$fwc}{$tag}{$subfield}{'repeatable'} != $field_data{$ftag}{'repeatable'}) {
-		    print "Field $ftag repeatability differs: Koha:'".$fwc."' ".$tags{$tablename}{$fwc}{$tag}{$subfield}{'repeatable'}.", Format:".$field_data{$ftag}{'repeatable'}.".\n"
+		    print "Field $ftag repeatability differs: Koha:'".$fwc."' ".$tags{$tablename}{$fwc}{$tag}{$subfield}{'repeatable'}.", Format:".$field_data{$ftag}{'repeatable'}.".\n";
+		    $updatedata{'repeatable'} = $field_data{$ftag}{'repeatable'};
+		}
+		if ($update && scalar(keys(%updatedata))) {
+		    my $sql = "UPDATE ".$tablename." SET ";
+		    my (@u_fields, @u_datas);
+		    while (my ($fld, $dat) = each %updatedata) {
+			push(@u_fields, $fld);
+			push(@u_datas, $dat);
+		    }
+		    $sql = $sql . join("=?, ", @u_fields) . "=?";
+		    $sql = $sql . " WHERE tagfield=? AND tagsubfield=? AND frameworkcode=?";
+		    push(@u_datas, $tag);
+		    push(@u_datas, $subfield);
+		    push(@u_datas, $fwc);
+		    print $sql."\n" if ($debug);
+		    print Dumper(\@u_datas) if ($debug);
+		    $sth = $dbh->prepare($sql);
+		    $sth->execute(@u_datas);
 		}
 	    }
 	}
@@ -359,16 +389,13 @@ sub find_missing_tags {
 read_xml($xml_glob);
 db_query_alltags();
 
-find_missing_tags();
+update_db_tags();
 
 if ($debug) {
     print Dumper(\%field_data);
     print Dumper(\%tags);
     exit;
 }
-
-
-
 
 
 __END__
@@ -401,6 +428,11 @@ Print field data missing from the Koha database to STDOUT.
 
 Insert missing field data into the Koha database.
 
+=item B<-update>
+
+Update field data in the Koha database to match the format spec.
+Updates the field descriptions and repeatability.
+
 =item B<-xml=globstring>
 
 Set the XML files where MARC21 format rules are read from. Default is data/bib-*.xml
@@ -413,10 +445,14 @@ default framework. Asterisk '*' means all frameworks. For example:
 
 =item B<-ignore=fieldspecs>
 
-Ignore certain fields, subfields or indicators. For example:
+Ignore certain fields or subfields. For example:
   C<-ignore=590,028a,655.ind2,008.length,9xx>
 would ignore the field 590, subfield 028a, indicator 2 of field 655,
 length checking for field 008, and all 9XX fields.
+
+=item B<-onlyfields=fieldspecs>
+
+Only handle these fields or subfields.
 
 =item B<-db setting=value>
 
