@@ -192,7 +192,7 @@ sub handle_code {
     print "Ignored: $tag\n" if ($debug && $ignore_fields{$tag});
     return if ($ignore_fields{$tag});
 
-    return if (!$only_fields{$tag});
+    return if ($only_fields_param && !$only_fields{$tag});
     
     print "$tag\t$name\trepeatable=$repeatable\n" if ($print);
     my %tmphash = (
