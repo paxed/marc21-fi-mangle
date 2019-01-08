@@ -220,20 +220,6 @@ sub parse_single_field {
 
     handle_code($tag, $name, $repeatable);
 
-    #my %valid_fields = %{$data->{'valid_fields'}};
-    #my %not_repeatable = %{$data->{'not_repeatable'}};
-    #my %allow_indicators = %{$data->{'allow_indicators'}};
-    #my %typed_field = %{$data->{'typed'}};
-    #my %regex_field = %{$data->{'regex'}};
-    #my %allow_regex = %{$data->{'allow_regex'}};
-
-    #$type = '' if ($type eq 'yleista');
-    #$type = "-".$type if ($type ne '');
-    #$typed_field{$tag} = 1 if ($type ne '');
-
-    #$valid_fields{$tag} = 1;
-    #$not_repeatable{$tag . $type} = 1 if ($repeatable eq 'N');
-
     if (defined($field->{'subfields'}{'subfield'})) {
         my $subfields = $field->{'subfields'}{'subfield'};
         my @subfieldarr;
@@ -252,25 +238,15 @@ sub parse_single_field {
             if ($sf_code =~ /^.-.$/) {
                 my ($code_s, $code_e) = split(/-/, $sf_code);
                 foreach my $sfc ($code_s..$code_e) {
-                    handle_code($tag.$sfc, $sf_name, $repeatable);
+                    handle_code($tag.$sfc, $sf_name, $sf_repeatable);
                 }
             } elsif ($sf_code =~ /^.$/) {
-                handle_code($tag.$sf_code, $sf_name, $repeatable);
+                handle_code($tag.$sf_code, $sf_name, $sf_repeatable);
             } else {
                 die "Unhandled subfield \"$sf_code\" for \"$tag\"";
             }
-
-            #$valid_fields{$tag . $sf_code} = 1;
-            #$not_repeatable{$tag . $sf_code . $type} = 1 if ($sf_repeatable eq 'N');
         }
     }
-
-    #$data->{'valid_fields'} = \%valid_fields;
-    #$data->{'not_repeatable'} = \%not_repeatable;
-    #$data->{'allow_indicators'} = \%allow_indicators;
-    #$data->{'typed'} = \%typed_field;
-    #$data->{'regex'} = \%regex_field;
-    #$data->{'allow_regex'} = \%allow_regex;
 }
 
 
@@ -326,6 +302,10 @@ sub uniq {
 #
 # Lists tags that are missing from the db
 sub find_missing_tags {
+
+    my $sth;
+    my $dbh = db_connect();
+
     my @frameworks = sort(uniq(keys(%{$tags{tablename(0)}}), keys(%{$tags{tablename(1)}})));
 
     if ($frameworkcode ne '*') {
@@ -344,10 +324,36 @@ sub find_missing_tags {
 	next if ($subfield eq '@');
 
 	foreach my $fwc (@frameworks) {
-	    print $fwc."\t".$tag." ".$subfield."\n" if (not exists($tags{$tablename}{$fwc}{$tag}{$subfield}));
+
+	    if (not exists($tags{$tablename}{$fwc}{$tag}{$subfield})) {
+		if ($insert) {
+		    my $sql = "INSERT into ".$tablename." (tagfield,tagsubfield,liblibrarian,libopac,repeatable,tab,frameworkcode,hidden) VALUES (?,?,?,?,?,?,?,?)";
+		    $sth = $dbh->prepare($sql);
+		    $sth->execute($tag, $subfield,
+				  $field_data{$ftag}{'name'},
+				  $field_data{$ftag}{'name'},
+				  $field_data{$ftag}{'repeatable'},
+				  substr($tag, 0, 1),$fwc, 1);
+		    print "Added new fields: '".$fwc."' $ftag\n";
+		} else {
+		    print "Missing:'".$fwc."' ".$ftag."\n";
+		}
+	    } else {
+		if ($tags{$tablename}{$fwc}{$tag}{$subfield}{'liblibrarian'} ne $field_data{$ftag}{'name'}) {
+		    print "Field $ftag description differs: Koha:'".$tags{$tablename}{$fwc}{$tag}{$subfield}{'liblibrarian'}."'  Format:'".$field_data{$ftag}{'name'}."'\n";
+		} elsif ($tags{$tablename}{$fwc}{$tag}{$subfield}{'libopac'} ne $field_data{$ftag}{'name'}) {
+		    print "Field $ftag OPAC description differs: Koha:'".$tags{$tablename}{$fwc}{$tag}{$subfield}{'libopac'}."'  Format:'".$field_data{$ftag}{'name'}."'\n";
+		}
+		if ($tags{$tablename}{$fwc}{$tag}{$subfield}{'repeatable'} != $field_data{$ftag}{'repeatable'}) {
+		    print "Field $ftag repeatability differs: Koha:'".$fwc."' ".$tags{$tablename}{$fwc}{$tag}{$subfield}{'repeatable'}.", Format:".$field_data{$ftag}{'repeatable'}.".\n"
+		}
+	    }
 	}
 	
     }
+
+    db_disconnect($dbh);
+
 }
 
 read_xml($xml_glob);
