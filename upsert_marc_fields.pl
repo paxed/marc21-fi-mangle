@@ -177,7 +177,7 @@ sub db_query_tags {
 
     while (my $ref = $sth->fetchrow_hashref()) {
 	my $fwc = ($bib_or_auth eq 'marc') ? $ref->{'frameworkcode'} : '';
-        if ($ref->{'tagsubfield'}) {
+        if (exists($ref->{'tagsubfield'})) {
             $tags{$tablename}{$fwc}{$ref->{'tagfield'}}{$ref->{'tagsubfield'}} = $ref;
         } else {
             $tags{$tablename}{$fwc}{$ref->{'tagfield'}} = $ref;
@@ -371,11 +371,13 @@ sub mk_sql_insert {
 	    'liblibrarian' => $field_data{$ftag}{'name'},
 	    'libopac' => $field_data{$ftag}{'name'},
 	    'repeatable' => $field_data{$ftag}{'repeatable'},
-	    'tab' => substr($tag, 0, 1),
 	    'frameworkcode' => $fwc,
-	    'hidden' => 1,
 	    );
-	$datas{'tagsubfield'} = $subfield if ($subfield);
+	if ($subfield) {
+	    $datas{'tagsubfield'} = "".$subfield;
+	    $datas{'tab'} = substr($tag, 0, 1);
+	    $datas{'hidden'} = 1;
+	}
 
 	my (@u_fields, @u_datas);
 	while (my ($fld, $dat) = each %datas) {
