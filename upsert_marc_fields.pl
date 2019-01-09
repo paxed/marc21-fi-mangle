@@ -202,6 +202,7 @@ sub handle_code {
     return if ($repeatable eq '' && $field_data{$tag});
 
     $repeatable = uc($repeatable);
+    $name = '' if (!$name);
     
     print "$tag\t$name\trepeatable=$repeatable\n" if ($print || $debug);
     my %tmphash = (
@@ -318,11 +319,11 @@ sub check_need_update {
     my ($ftag, $fwc, $ct, $cfd) = @_;
     my %updatedata = ();
 
-    if ($ct->{'liblibrarian'} ne $cfd->{'name'}) {
+    if ($ct->{'liblibrarian'} ne $cfd->{'name'} && $cfd->{'name'} ne '') {
 	print fwcname($fwc)."Field $ftag description: Koha:'".$ct->{'liblibrarian'}."', Format:'".$cfd->{'name'}."'\n";
 	$updatedata{'liblibrarian'} = $cfd->{'name'};
     }
-    if ($ct->{'libopac'} ne $cfd->{'name'}) {
+    if ($ct->{'libopac'} ne $cfd->{'name'} && $cfd->{'name'} ne '') {
 	print fwcname($fwc)."Field $ftag OPAC description: Koha:'".$ct->{'libopac'}."', Format:'".$cfd->{'name'}."'\n";
 	$updatedata{'libopac'} = $cfd->{'name'};
     }
