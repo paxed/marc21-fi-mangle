@@ -198,14 +198,16 @@ sub handle_code {
 
     print "Ignored: $tag\n" if ($debug && $ignore_fields{$tag});
     return if ($ignore_fields{$tag});
-
     return if ($only_fields_param && !$only_fields{$tag});
+    return if ($repeatable eq '' && $field_data{$tag});
+
+    $repeatable = uc($repeatable);
     
-    print "$tag\t$name\trepeatable=$repeatable\n" if ($print);
+    print "$tag\t$name\trepeatable=$repeatable\n" if ($print || $debug);
     my %tmphash = (
 	'tagfield' => substr($tag, 0, 3),
 	'name' => $name,
-	'repeatable' => ($repeatable eq 'Y') ? 1 : 0,
+	'repeatable' => ($repeatable eq 'Y') ? 1 : (($repeatable eq 'N') ? 0 : -1),
 	);
     $tmphash{'tagsubfield'} = $sf if ($sf ne '@');
     
@@ -219,10 +221,6 @@ sub parse_single_field {
     my $tag = $field->{'tag'};
     my $type = $field->{'type'} || '';
     my $repeatable = $field->{'repeatable'} || '';
-
-    return if ($repeatable eq '');
-
-    #print Dumper($field);
 
     if ($tag =~ /x/i) {
         my @tags = generate_tag_sequence($tag);
@@ -328,7 +326,7 @@ sub check_need_update {
 	print fwcname($fwc)."Field $ftag OPAC description: Koha:'".$ct->{'libopac'}."', Format:'".$cfd->{'name'}."'\n";
 	$updatedata{'libopac'} = $cfd->{'name'};
     }
-    if ($ct->{'repeatable'} != $cfd->{'repeatable'}) {
+    if ($ct->{'repeatable'} != $cfd->{'repeatable'} && $cfd->{'repeatable'} > -1) {
 	print fwcname($fwc)."Field $ftag repeatable: Koha:".$ct->{'repeatable'}.", Format:".$cfd->{'repeatable'}.".\n";
 	$updatedata{'repeatable'} = $cfd->{'repeatable'};
     }
