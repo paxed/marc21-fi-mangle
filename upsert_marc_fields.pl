@@ -7,8 +7,10 @@ use warnings;
 #
 #
 #
-#
-#
+# TODO: - improve the description & OPAC desc differing reporting.
+#          (use one line instead of two)
+#       - trim before comparing the descriptions
+#       - fix repeatable="" checking. (don't change it in Koha)
 #
 
 use Getopt::Long;
@@ -86,6 +88,11 @@ my %tags = ( );  # tag/subfield data from the database
 
 #################################################################
 #################################################################
+
+sub fwcname {
+    my $s = shift || "default";
+    return "[$s] ";
+}
 
 sub generate_tag_sequence {
     my ($tag) = @_;
@@ -307,11 +314,94 @@ sub uniq {
     return grep { !$seen{$_}++ } @_;
 }
 
+# parameters: tag, frameworkcode, hashref to %tags, hashref to %field_data
+# returns hashref
+sub check_need_update {
+    my ($ftag, $fwc, $ct, $cfd) = @_;
+    my %updatedata = ();
+
+    if ($ct->{'liblibrarian'} ne $cfd->{'name'}) {
+	print fwcname($fwc)."Field $ftag description: Koha:'".$ct->{'liblibrarian'}."', Format:'".$cfd->{'name'}."'\n";
+	$updatedata{'liblibrarian'} = $cfd->{'name'};
+    }
+    if ($ct->{'libopac'} ne $cfd->{'name'}) {
+	print fwcname($fwc)."Field $ftag OPAC description: Koha:'".$ct->{'libopac'}."', Format:'".$cfd->{'name'}."'\n";
+	$updatedata{'libopac'} = $cfd->{'name'};
+    }
+    if ($ct->{'repeatable'} != $cfd->{'repeatable'}) {
+	print fwcname($fwc)."Field $ftag repeatable: Koha:".$ct->{'repeatable'}.", Format:".$cfd->{'repeatable'}.".\n";
+	$updatedata{'repeatable'} = $cfd->{'repeatable'};
+    }
+    return \%updatedata;
+}
+
+sub mk_sql_update {
+    my ($dbh, $updatedata, $tablename, $fwc, $tag, $subfield) = @_;
+
+    if (($update || $debug) && scalar(keys(%{$updatedata}))) {
+	my $sql = "UPDATE ".$tablename." SET ";
+	my (@u_fields, @u_datas);
+	while (my ($fld, $dat) = each %{$updatedata}) {
+	    push(@u_fields, $fld);
+	    push(@u_datas, $dat);
+	}
+	$sql = $sql . join("=?, ", @u_fields) . "=?";
+	$sql = $sql . " WHERE tagfield=? AND frameworkcode=?";
+	push(@u_datas, $tag);
+	push(@u_datas, $fwc);
+	if ($subfield) {
+	    $sql = $sql . " AND tagsubfield=?";
+	    push(@u_datas, $subfield);
+	}
+	print $sql."\n" if ($debug);
+	print Dumper(\@u_datas) if ($debug);
+	if ($update && $dbh) {
+	    my $sth = $dbh->prepare($sql);
+	    $sth->execute(@u_datas);
+	}
+    }
+}
+
+sub mk_sql_insert {
+    my ($dbh, $tablename, $fwc, $ftag, $tag, $subfield) = @_;
+    if ($insert || $debug) {
+	my %datas = (
+	    'tagfield' => $tag,
+	    'liblibrarian' => $field_data{$ftag}{'name'},
+	    'libopac' => $field_data{$ftag}{'name'},
+	    'repeatable' => $field_data{$ftag}{'repeatable'},
+	    'tab' => substr($tag, 0, 1),
+	    'frameworkcode' => $fwc,
+	    'hidden' => 1,
+	    );
+	$datas{'tagsubfield'} = $subfield if ($subfield);
+
+	my (@u_fields, @u_datas);
+	while (my ($fld, $dat) = each %datas) {
+	    push(@u_fields, $fld);
+	    push(@u_datas, $dat);
+	}
+
+	my $qmarks = ("?," x scalar(@u_fields));
+	$qmarks =~ s/,$//;
+	my $sql = "INSERT INTO $tablename (".join(',',@u_fields).") VALUES (".$qmarks.")";
+
+	print $sql."\n".Dumper(\@u_datas) if ($debug);
+
+	if ($insert) {
+	    my $sth = $dbh->prepare($sql);
+	    $sth->execute(@u_datas);
+	    print fwcname($fwc)."Added new field: ".$ftag."\n";
+	}
+    } else {
+	print fwcname($fwc)."Missing: ".$ftag."\n";
+    }
+}
+
 #
 # Update tags in the db
 sub update_db_tags {
 
-    my $sth;
     my $dbh = db_connect();
 
     my @frameworks = sort(uniq(keys(%{$tags{tablename(0)}}), keys(%{$tags{tablename(1)}})));
@@ -326,57 +416,39 @@ sub update_db_tags {
     
     foreach my $ftag (sort keys(%field_data)) {
 	my $tag = substr($ftag, 0, 3);
-	my $subfield = substr($ftag, 3, 1) || '@';
-	my $tablename = tablename($subfield ne '@');
+	my $subfield = "".substr($ftag, 3, 1);
+	my $tablename;
 
-	next if ($subfield eq '@');
+	$subfield = '@' if ($subfield eq '');
+	#next if ($subfield eq '@');
+	$tablename = tablename($subfield ne '@');
 
 	foreach my $fwc (@frameworks) {
+	    my %updatedata = ();
+	    my $ct;
+	    my $cfd;
+
+	    if ($subfield eq '@') {
+
+		if (not exists($tags{$tablename}{$fwc}{$tag})) {
+		    mk_sql_insert($dbh, $tablename, $fwc, $ftag, $tag);
+		} else {
+		    $ct = \%{$tags{$tablename}{$fwc}{$tag}};
+		    $cfd = \%{$field_data{$tag}};
+		    my $updatedata = check_need_update($ftag, $fwc, $ct, $cfd);
+		    mk_sql_update($dbh, $updatedata, $tablename, $fwc, $tag);
+		}
+		
+		next;
+	    }
 
 	    if (not exists($tags{$tablename}{$fwc}{$tag}{$subfield})) {
-		if ($insert) {
-		    my $sql = "INSERT into ".$tablename." (tagfield,tagsubfield,liblibrarian,libopac,repeatable,tab,frameworkcode,hidden) VALUES (?,?,?,?,?,?,?,?)";
-		    $sth = $dbh->prepare($sql);
-		    $sth->execute($tag, $subfield,
-				  $field_data{$ftag}{'name'},
-				  $field_data{$ftag}{'name'},
-				  $field_data{$ftag}{'repeatable'},
-				  substr($tag, 0, 1),$fwc, 1);
-		    print "Added new fields: '".$fwc."' $ftag\n";
-		} else {
-		    print "Missing:'".$fwc."' ".$ftag."\n";
-		}
+		mk_sql_insert($dbh, $tablename, $fwc, $ftag, $tag, $subfield);
 	    } else {
-		my %updatedata = ();
-		if ($tags{$tablename}{$fwc}{$tag}{$subfield}{'liblibrarian'} ne $field_data{$ftag}{'name'}) {
-		    print "Field $ftag description differs: Koha:'".$tags{$tablename}{$fwc}{$tag}{$subfield}{'liblibrarian'}."'  Format:'".$field_data{$ftag}{'name'}."'\n";
-		    $updatedata{'liblibrarian'} = $field_data{$ftag}{'name'};
-		}
-		if ($tags{$tablename}{$fwc}{$tag}{$subfield}{'libopac'} ne $field_data{$ftag}{'name'}) {
-		    print "Field $ftag OPAC description differs: Koha:'".$tags{$tablename}{$fwc}{$tag}{$subfield}{'libopac'}."'  Format:'".$field_data{$ftag}{'name'}."'\n";
-		    $updatedata{'libopac'} = $field_data{$ftag}{'name'};
-		}
-		if ($tags{$tablename}{$fwc}{$tag}{$subfield}{'repeatable'} != $field_data{$ftag}{'repeatable'}) {
-		    print "Field $ftag repeatability differs: Koha:'".$fwc."' ".$tags{$tablename}{$fwc}{$tag}{$subfield}{'repeatable'}.", Format:".$field_data{$ftag}{'repeatable'}.".\n";
-		    $updatedata{'repeatable'} = $field_data{$ftag}{'repeatable'};
-		}
-		if ($update && scalar(keys(%updatedata))) {
-		    my $sql = "UPDATE ".$tablename." SET ";
-		    my (@u_fields, @u_datas);
-		    while (my ($fld, $dat) = each %updatedata) {
-			push(@u_fields, $fld);
-			push(@u_datas, $dat);
-		    }
-		    $sql = $sql . join("=?, ", @u_fields) . "=?";
-		    $sql = $sql . " WHERE tagfield=? AND tagsubfield=? AND frameworkcode=?";
-		    push(@u_datas, $tag);
-		    push(@u_datas, $subfield);
-		    push(@u_datas, $fwc);
-		    print $sql."\n" if ($debug);
-		    print Dumper(\@u_datas) if ($debug);
-		    $sth = $dbh->prepare($sql);
-		    $sth->execute(@u_datas);
-		}
+		$ct = \%{$tags{$tablename}{$fwc}{$tag}{$subfield}};
+		$cfd = \%{$field_data{$ftag}};
+		my $updatedata = check_need_update($ftag, $fwc, $ct, $cfd);
+		mk_sql_update($dbh, $updatedata, $tablename, $fwc, $tag, $subfield);
 	    }
 	}
 	
@@ -389,13 +461,13 @@ sub update_db_tags {
 read_xml($xml_glob);
 db_query_alltags();
 
-update_db_tags();
-
 if ($debug) {
     print Dumper(\%field_data);
     print Dumper(\%tags);
-    exit;
 }
+
+update_db_tags();
+
 
 
 __END__
@@ -439,8 +511,9 @@ Set the XML files where MARC21 format rules are read from. Default is data/bib-*
 
 =item B<-framework=fwcodespecs>
 
-Only check the listed frameworks, separated by commas. Default value is '', which means the
-default framework. Asterisk '*' means all frameworks. For example:
+Only check the listed frameworks, separated by commas.
+By default only the default framework is checked.
+Asterisk '*' means all frameworks. For example:
   C<-framework=ACQ,VR>
 
 =item B<-ignore=fieldspecs>
