@@ -315,22 +315,48 @@ sub uniq {
     return grep { !$seen{$_}++ } @_;
 }
 
+sub yesno {
+    my $i = shift || 0;
+    return $i ? "YES" : "no ";
+}
+
+sub pfld {
+    my $f = shift;
+    return sprintf("%-4s", $f);
+}
+
 # parameters: tag, frameworkcode, hashref to %tags, hashref to %field_data
 # returns hashref
 sub check_need_update {
     my ($ftag, $fwc, $ct, $cfd) = @_;
     my %updatedata = ();
 
+    $ftag = pfld($ftag);
+
+    my $desc = 0;
+    
     if (trim($ct->{'liblibrarian'}) ne $cfd->{'name'} && $cfd->{'name'} ne '') {
-	print fwcname($fwc)."Field $ftag description: Koha:'".$ct->{'liblibrarian'}."', Format:'".$cfd->{'name'}."'\n";
+	$desc = 1;
 	$updatedata{'liblibrarian'} = $cfd->{'name'};
     }
     if (trim($ct->{'libopac'}) ne $cfd->{'name'} && $cfd->{'name'} ne '') {
-	print fwcname($fwc)."Field $ftag OPAC description: Koha:'".$ct->{'libopac'}."', Format:'".$cfd->{'name'}."'\n";
+	$desc |= 2;
 	$updatedata{'libopac'} = $cfd->{'name'};
     }
+
+    if ($desc) {
+	print fwcname($fwc)."$ftag description: ";
+	if ($desc == 3 && $ct->{'liblibrarian'} eq $ct->{'libopac'}) {
+	    print "Koha:'".$ct->{'libopac'}."', ";
+	} else {
+	    print "Intra:'".$ct->{'liblibrarian'}."', " if ($desc & 1);
+	    print "OPAC:'".$ct->{'libopac'}."', " if ($desc & 2);
+	}
+	print "Format:'".$cfd->{'name'}."'\n";
+    }
+
     if ($ct->{'repeatable'} != $cfd->{'repeatable'} && $cfd->{'repeatable'} > -1) {
-	print fwcname($fwc)."Field $ftag repeatable: Koha:".$ct->{'repeatable'}.", Format:".$cfd->{'repeatable'}.".\n";
+	print fwcname($fwc)."$ftag repeatable: Koha:".yesno($ct->{'repeatable'}).", Format:".yesno($cfd->{'repeatable'})."\n";
 	$updatedata{'repeatable'} = $cfd->{'repeatable'};
     }
     return \%updatedata;
@@ -394,10 +420,10 @@ sub mk_sql_insert {
 	if ($insert) {
 	    my $sth = $dbh->prepare($sql);
 	    $sth->execute(@u_datas);
-	    print fwcname($fwc)."Added new field: ".$ftag."\n";
+	    print fwcname($fwc)."Added new field: ".pfld($ftag)." (".$field_data{$ftag}{'name'}.")\n";
 	}
     } else {
-	print fwcname($fwc)."Missing: ".$ftag."\n";
+	print fwcname($fwc)."Missing: ".pfld($ftag)." (".$field_data{$ftag}{'name'}.")\n";
     }
 }
 
