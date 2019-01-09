@@ -191,6 +191,8 @@ sub db_query_alltags {
     db_query_tags(1);
 }
 
+sub  trim { my $s = shift; $s =~ s/^\s+|\s+$//g; return $s };
+
 sub handle_code {
     my ($tag, $name, $repeatable) = @_;
 
@@ -207,7 +209,7 @@ sub handle_code {
     print "$tag\t$name\trepeatable=$repeatable\n" if ($print || $debug);
     my %tmphash = (
 	'tagfield' => substr($tag, 0, 3),
-	'name' => $name,
+	'name' => trim($name),
 	'repeatable' => ($repeatable eq 'Y') ? 1 : (($repeatable eq 'N') ? 0 : -1),
 	);
     $tmphash{'tagsubfield'} = $sf if ($sf ne '@');
@@ -319,11 +321,11 @@ sub check_need_update {
     my ($ftag, $fwc, $ct, $cfd) = @_;
     my %updatedata = ();
 
-    if ($ct->{'liblibrarian'} ne $cfd->{'name'} && $cfd->{'name'} ne '') {
+    if (trim($ct->{'liblibrarian'}) ne $cfd->{'name'} && $cfd->{'name'} ne '') {
 	print fwcname($fwc)."Field $ftag description: Koha:'".$ct->{'liblibrarian'}."', Format:'".$cfd->{'name'}."'\n";
 	$updatedata{'liblibrarian'} = $cfd->{'name'};
     }
-    if ($ct->{'libopac'} ne $cfd->{'name'} && $cfd->{'name'} ne '') {
+    if (trim($ct->{'libopac'}) ne $cfd->{'name'} && $cfd->{'name'} ne '') {
 	print fwcname($fwc)."Field $ftag OPAC description: Koha:'".$ct->{'libopac'}."', Format:'".$cfd->{'name'}."'\n";
 	$updatedata{'libopac'} = $cfd->{'name'};
     }
