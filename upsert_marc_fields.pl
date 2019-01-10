@@ -48,6 +48,7 @@ my $insert = 0;
 my $update = 0;
 my $bib_or_auth = 'marc';
 my $frameworkcode = ' ';
+my $new_fields_hidden = 1;
 
 GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (exists($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting '".$onam."'."); } },
@@ -62,6 +63,7 @@ GetOptions(
     'auth' => sub { $bib_or_auth = 'auth'; },
     'bib|bibs' => sub { $bib_or_auth = 'marc'; },
     'framework=s' => \$frameworkcode,
+    'hidden=i' => \$new_fields_hidden,
     ) or pod2usage(2);
 
 pod2usage(1) if ($help);
@@ -78,8 +80,6 @@ my %ignore_fields = map { ($_ => 1) } generate_tag_sequence($ignore_fields_param
 my %only_fields = map { ($_ => 1) } generate_tag_sequence($only_fields_param);
 my %field_data = ( ); # marc format data from xml
 my %tags = ( );  # tag/subfield data from the database
-
-
 
 #################################################################
 #################################################################
@@ -372,7 +372,7 @@ sub mk_sql_update {
 	$sql = $sql . " WHERE tagfield=? AND frameworkcode=?";
 	push(@u_datas, $tag);
 	push(@u_datas, $fwc);
-	if ($subfield) {
+	if (defined($subfield)) {
 	    $sql = $sql . " AND tagsubfield=?";
 	    push(@u_datas, $subfield);
 	}
@@ -395,10 +395,10 @@ sub mk_sql_insert {
 	    'repeatable' => $field_data{$ftag}{'repeatable'},
 	    'frameworkcode' => $fwc,
 	    );
-	if ($subfield) {
+	if (defined($subfield)) {
 	    $datas{'tagsubfield'} = "".$subfield;
 	    $datas{'tab'} = substr($tag, 0, 1);
-	    $datas{'hidden'} = 1;
+	    $datas{'hidden'} = $new_fields_hidden ? 1 : 0;
 	}
 
 	my (@u_fields, @u_datas);
@@ -558,6 +558,10 @@ length checking for field 008, and all 9XX fields.
 =item B<-onlyfields=fieldspecs>
 
 Only handle these fields or subfields. Same format as -ignore.
+
+=item B<-hidden=[0|1]>
+
+Create new fields visible or hidden? Default is 1.
 
 =item B<-db setting=value>
 
