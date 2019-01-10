@@ -5,13 +5,6 @@ use warnings;
 # Update and/or insert MARC21 field information from the Finnish
 # National Library's translated machine-readable MARC21 format into Koha
 #
-#
-#
-# TODO: - improve the description & OPAC desc differing reporting.
-#          (use one line instead of two)
-#       - trim before comparing the descriptions
-#       - fix repeatable="" checking. (don't change it in Koha)
-#
 
 use Getopt::Long;
 use Pod::Usage;
@@ -51,7 +44,7 @@ my $frameworkcode = ' ';
 my $new_fields_hidden = 1;
 
 GetOptions(
-    'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (exists($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting '".$onam."'."); } },
+    'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (exists($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { warn "Unknown db setting '".$onam."'."; } },
     'ignore=s' => \$ignore_fields_param,
     'onlyfields=s' => \$only_fields_param,
     'help|h|?' => \$help,
@@ -255,7 +248,7 @@ sub parse_single_field {
             } elsif ($sf_code =~ /^.$/) {
                 handle_code($tag.$sf_code, $sf_name, $sf_repeatable);
             } else {
-                die "Unhandled subfield \"$sf_code\" for \"$tag\"";
+                warn "Unhandled subfield \"$sf_code\" for \"$tag\"";
             }
         }
     }
@@ -445,7 +438,6 @@ sub update_db_tags {
 	my $tablename;
 
 	$subfield = '@' if ($subfield eq '');
-	#next if ($subfield eq '@');
 	$tablename = tablename($subfield ne '@');
 
 	foreach my $fwc (@frameworks) {
@@ -454,7 +446,6 @@ sub update_db_tags {
 	    my $cfd;
 
 	    if ($subfield eq '@') {
-
 		if (not exists($tags{$tablename}{$fwc}{$tag})) {
 		    mk_sql_insert($dbh, $tablename, $fwc, $ftag, $tag);
 		} else {
@@ -463,24 +454,19 @@ sub update_db_tags {
 		    my $updatedata = check_need_update($ftag, $fwc, $ct, $cfd);
 		    mk_sql_update($dbh, $updatedata, $tablename, $fwc, $tag);
 		}
-		
-		next;
-	    }
-
-	    if (not exists($tags{$tablename}{$fwc}{$tag}{$subfield})) {
-		mk_sql_insert($dbh, $tablename, $fwc, $ftag, $tag, $subfield);
 	    } else {
-		$ct = \%{$tags{$tablename}{$fwc}{$tag}{$subfield}};
-		$cfd = \%{$field_data{$ftag}};
-		my $updatedata = check_need_update($ftag, $fwc, $ct, $cfd);
-		mk_sql_update($dbh, $updatedata, $tablename, $fwc, $tag, $subfield);
+		if (not exists($tags{$tablename}{$fwc}{$tag}{$subfield})) {
+		    mk_sql_insert($dbh, $tablename, $fwc, $ftag, $tag, $subfield);
+		} else {
+		    $ct = \%{$tags{$tablename}{$fwc}{$tag}{$subfield}};
+		    $cfd = \%{$field_data{$ftag}};
+		    my $updatedata = check_need_update($ftag, $fwc, $ct, $cfd);
+		    mk_sql_update($dbh, $updatedata, $tablename, $fwc, $tag, $subfield);
+		}
 	    }
 	}
-	
     }
-
     db_disconnect($dbh);
-
 }
 
 read_xml($xml_glob);
@@ -561,7 +547,7 @@ Only handle these fields or subfields. Same format as -ignore.
 
 =item B<-hidden=[0|1]>
 
-Create new fields visible or hidden? Default is 1.
+Create new fields visible or hidden? Default is 1 (Hidden).
 
 =item B<-db setting=value>
 
