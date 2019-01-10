@@ -43,29 +43,24 @@ my $ignore_fields_param = '';
 my $only_fields_param = '';
 my $help = 0;
 my $man = 0;
-my $verbose = 0;
 my $debug = 0;
-my $print = 0;
 my $insert = 0;
 my $update = 0;
-my $missing = 0;
 my $bib_or_auth = 'marc';
 my $frameworkcode = ' ';
 
 GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (exists($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting '".$onam."'."); } },
-    'v|verbose' => \$verbose,
     'ignore=s' => \$ignore_fields_param,
     'onlyfields=s' => \$only_fields_param,
     'help|h|?' => \$help,
     'man' => \$man,
     'debug' => \$debug,
     'xml=s' => \$xml_glob,
-    'print' => \$print,
     'insert' => \$insert,
     'update' => \$update,
-    'missing' => \$missing,
     'auth' => sub { $bib_or_auth = 'auth'; },
+    'bib|bibs' => sub { $bib_or_auth = 'marc'; },
     'framework=s' => \$frameworkcode,
     ) or pod2usage(2);
 
@@ -196,7 +191,8 @@ sub  trim { my $s = shift; $s =~ s/^\s+|\s+$//g; return $s };
 sub handle_code {
     my ($tag, $name, $repeatable) = @_;
 
-    my $sf = substr($tag, 3, 1) || '@';
+    my $sf = "".substr($tag, 3, 1);
+    $sf = '@' if ($sf eq '');
 
     print "Ignored: $tag\n" if ($debug && $ignore_fields{$tag});
     return if ($ignore_fields{$tag});
@@ -206,7 +202,7 @@ sub handle_code {
     $repeatable = uc($repeatable);
     $name = '' if (!$name);
     
-    print "$tag\t$name\trepeatable=$repeatable\n" if ($print || $debug);
+    print "$tag\t$name\trepeatable=$repeatable\n" if ($debug);
     my %tmphash = (
 	'tagfield' => substr($tag, 0, 3),
 	'name' => trim($name),
@@ -517,13 +513,9 @@ Print this help.
 
 Print this help as a man page.
 
-=item B<-print>
+=item B<-debug>
 
-Print output to STDOUT.
-
-=item B<-missing>
-
-Print field data missing from the Koha database to STDOUT.
+Output a lot of debugging data.
 
 =item B<-insert>
 
@@ -534,11 +526,22 @@ Insert missing field data into the Koha database.
 Update field data in the Koha database to match the format spec.
 Updates the field descriptions and repeatability.
 
+=item B<-auth>
+
+Use the authority XML data (data/aukt-*.xml), and check the authority
+frameworks.
+
+=item B<-bibs>
+
+Use the bibliographic XML data (data/bib-*.xml), and check the bibliographic
+frameworks. This is the default mode.
+
 =item B<-xml=globstring>
 
-Set the XML files where MARC21 format rules are read from. Default is data/bib-*.xml
+Set the XML files where MARC21 format rules are read from. Default depends on
+whether -auth or -bibs is given.
 
-=item B<-framework=fwcodespecs>
+=item B<-framework=string>
 
 Only check the listed frameworks, separated by commas.
 By default only the default framework is checked.
@@ -554,7 +557,7 @@ length checking for field 008, and all 9XX fields.
 
 =item B<-onlyfields=fieldspecs>
 
-Only handle these fields or subfields.
+Only handle these fields or subfields. Same format as -ignore.
 
 =item B<-db setting=value>
 
@@ -566,7 +569,7 @@ username ("kohaadmin"), password ("katikoan"), dbname ("koha"), mysql_socket (no
 =head1 DESCRIPTION
 
 This program will read in the Finnish National Library's translated machine-readable MARC21 format
-and update or insert  the fields in Koha frameworks.
+and update or insert the fields in Koha frameworks.
 
 =cut
 
