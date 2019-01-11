@@ -66,7 +66,7 @@ if ($xml_glob eq '') {
     $xml_glob = $xml_globs{$bib_or_auth};
     die "XML glob files missing." if (!$xml_glob);
 }
-    
+
 
 
 my %ignore_fields = map { ($_ => 1) } generate_tag_sequence($ignore_fields_param);
@@ -128,11 +128,9 @@ sub db_connect {
     }
 
     my $dbh = DBI->connect($s, $dbdata{'username'}, $dbdata{'password'}, {'RaiseError' => 1, mysql_enable_utf8 => 1});
-    if (!$dbh) {
-        print "DB Error.";
-        footer();
-        exit;
-    }
+
+    die("DB Error") if (!$dbh);
+
     return $dbh;
 }
 
@@ -194,7 +192,7 @@ sub handle_code {
 
     $repeatable = uc($repeatable);
     $name = '' if (!$name);
-    
+
     print "$tag\t$name\trepeatable=$repeatable\n" if ($debug);
     my %tmphash = (
 	'tagfield' => substr($tag, 0, 3),
@@ -202,7 +200,7 @@ sub handle_code {
 	'repeatable' => ($repeatable eq 'Y') ? 1 : (($repeatable eq 'N') ? 0 : -1),
 	);
     $tmphash{'tagsubfield'} = $sf if ($sf ne '@');
-    
+
     $field_data{$tag} = \%tmphash;
 }
 
@@ -293,6 +291,8 @@ sub read_xml {
     my ($glob) = @_;
 
     my @xmlfiles = glob($xml_glob);
+    die("No XML files found with $xml_glob") if (scalar(@xmlfiles) < 1);
+
     foreach my $file (@xmlfiles) {
 	print "\nParsing: $file\n" if ($debug);
         parse_xml_data($file, \%field_data);
@@ -323,7 +323,7 @@ sub check_need_update {
     $ftag = pfld($ftag);
 
     my $desc = 0;
-    
+
     if (trim($ct->{'liblibrarian'}) ne $cfd->{'name'} && $cfd->{'name'} ne '') {
 	$desc = 1;
 	$updatedata{'liblibrarian'} = $cfd->{'name'};
@@ -431,7 +431,7 @@ sub update_db_tags {
 	@frameworks = @usefw;
 	@frameworks = ('') if (scalar(@frameworks) < 1);
     }
-    
+
     foreach my $ftag (sort keys(%field_data)) {
 	my $tag = substr($ftag, 0, 3);
 	my $subfield = "".substr($ftag, 3, 1);
@@ -562,4 +562,3 @@ This program will read in the Finnish National Library's translated machine-read
 and update or insert the fields in Koha frameworks.
 
 =cut
-
