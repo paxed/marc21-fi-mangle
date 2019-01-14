@@ -116,6 +116,8 @@ sub handle_koha_flags {
 
     my $sval = $rev ? $value : $flaglut{$value};
     print "Using flags $sval for fields\n" if ($debug || !$rev);
+
+    $hidden_value = (!$rev) ? $value : $flaglut{$value};
 }
 
 sub fwcname {
