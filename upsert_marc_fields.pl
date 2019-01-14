@@ -31,6 +31,29 @@ my %xml_globs = (
     'auth' => './data/aukt-*.xml',
     );
 
+# These are hardcoded in Koha
+# https://wiki.koha-community.org/wiki/Hidden_values
+# https://bugs.koha-community.org/bugzilla3/show_bug.cgi?id=22123
+my %koha_hidden_flags = (
+    -8 => 'flagged',
+    -7 => 'collapsed,opac',
+    -6 => 'intranet,opac',
+    -5 => 'collapsed,intranet,opac',
+    -4 => 'opac',
+    -3 => 'collapsed,editor,opac',
+    -2 => 'editor,opac',
+    -1 => 'collapsed,editor,intranet,opac',
+    0  => 'editor,intranet,opac',
+    1  => 'collapsed,editor,intranet',
+    2  => 'editor',
+    3  => 'collapsed,editor',
+    4  => 'editor,intranet',
+    5  => 'collapsed',
+    6  => 'intranet',
+    7  => 'collapsed,intranet',
+    8  => '',
+    );
+
 my $xml_glob = '';
 my $ignore_fields_param = '';
 my $only_fields_param = '';
@@ -41,7 +64,7 @@ my $insert = 0;
 my $update = 0;
 my $bib_or_auth = 'marc';
 my $frameworkcode = ' ';
-my $new_fields_hidden = 1;
+my $hidden_value = -6; # intranet,opac
 
 GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (exists($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { warn "Unknown db setting '".$onam."'."; } },
@@ -56,7 +79,7 @@ GetOptions(
     'auth' => sub { $bib_or_auth = 'auth'; },
     'bib|bibs' => sub { $bib_or_auth = 'marc'; },
     'framework=s' => \$frameworkcode,
-    'hidden=i' => \$new_fields_hidden,
+    'flags=s' => \&handle_koha_flags,
     ) or pod2usage(2);
 
 pod2usage(1) if ($help);
@@ -76,6 +99,24 @@ my %tags = ( );  # tag/subfield data from the database
 
 #################################################################
 #################################################################
+
+sub handle_koha_flags {
+    my ($name, $value) = @_;
+
+    $value =~ s/ //g;
+    my @tmp = split(/,/, lc($value));
+    $value = join(',', sort @tmp);
+
+    my $rev = ($value =~ /[a-z]/) ? 1 : 0;
+
+    my %flaglut = %koha_hidden_flags;
+    %flaglut = reverse(%koha_hidden_flags) if ($rev);
+
+    die("Cannot represent flags $value with koha hidden integer.") if (!defined($flaglut{$value}));
+
+    my $sval = $rev ? $value : $flaglut{$value};
+    print "Using flags $sval for fields\n" if ($debug || !$rev);
+}
 
 sub fwcname {
     my $s = shift || "default";
@@ -391,7 +432,7 @@ sub mk_sql_insert {
 	if (defined($subfield)) {
 	    $datas{'tagsubfield'} = "".$subfield;
 	    $datas{'tab'} = substr($tag, 0, 1);
-	    $datas{'hidden'} = $new_fields_hidden ? 1 : 0;
+	    $datas{'hidden'} = $hidden_value;
 	}
 
 	my (@u_fields, @u_datas);
@@ -545,9 +586,11 @@ length checking for field 008, and all 9XX fields.
 
 Only handle these fields or subfields. Same format as -ignore.
 
-=item B<-hidden=[0|1]>
+=item B<-flags=string>
 
-Create new fields visible or hidden? Default is 1 (Hidden).
+Create new fields with these flags set. List flags separated by commas.
+Allowed flags are collapsed,editor,flagged,intranet,opac.
+Default value is intranet,opac. Not all combinations are valid.
 
 =item B<-db setting=value>
 
