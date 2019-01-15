@@ -467,13 +467,25 @@ sub update_db_tags {
 
     my @frameworks = sort(uniq(keys(%{$tags{tablename(0)}}), keys(%{$tags{tablename(1)}})));
 
-    if ($frameworkcode ne '*') {
-	my @tmpfw = split(/,/, $frameworkcode);
-	my @usefw = grep { my $f = $_; grep $_ eq $f, @tmpfw } @frameworks;
+    if ($frameworkcode !~ /^\*/) {
+        my @tmpfw = split(/,/, $frameworkcode, -1);
+        @tmpfw = ('') if (scalar(@tmpfw) < 1);
 
-	@frameworks = @usefw;
-	@frameworks = ('') if (scalar(@frameworks) < 1);
+        my @usefw = grep { my $f = $_; grep $_ eq $f, @tmpfw } @frameworks;
+
+        @frameworks = @usefw;
+    } elsif ($frameworkcode =~ /^\*-/) {
+        $frameworkcode =~ s/^\*-//;
+
+        my @tmpfw = split(/,/, $frameworkcode, -1);
+        @tmpfw = ('') if (scalar(@tmpfw) < 1);
+
+        my @usefw = grep { my $f = $_; !grep $_ eq $f, @tmpfw } @frameworks;
+        @frameworks = @usefw;
+    } else {
+        # nothing, use default value
     }
+    die("No valid frameworks") if (scalar(@frameworks) < 1);
 
     foreach my $ftag (sort keys(%field_data)) {
 	my $tag = substr($ftag, 0, 3);
@@ -516,8 +528,8 @@ read_xml($xml_glob);
 db_query_alltags();
 
 if ($debug) {
-    print Dumper(\%field_data);
-    print Dumper(\%tags);
+    print "Data from XML:\n".Dumper(\%field_data);
+    print "Data from Koha database:\n".Dumper(\%tags);
 }
 
 update_db_tags();
@@ -574,7 +586,10 @@ whether -auth or -bibs is given.
 
 Only check the listed frameworks, separated by commas.
 By default only the default framework is checked.
-Asterisk '*' means all frameworks. For example:
+Asterisk '*' means all frameworks. To do all frameworks except the listed ones,
+use '*-X,Y', which would do every framework except X and Y.
+Asterisk, if used, must be first.
+ For example:
   C<-framework=ACQ,VR>
 
 =item B<-ignore=fieldspecs>
