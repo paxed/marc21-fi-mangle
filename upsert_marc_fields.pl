@@ -63,7 +63,7 @@ my $debug = 0;
 my $insert = 0;
 my $update = 0;
 my $bib_or_auth = 'marc';
-my $frameworkcode = ' ';
+my $frameworkcode = '';
 my $hidden_value = -6; # intranet,opac
 
 GetOptions(
@@ -400,10 +400,10 @@ sub mk_sql_update {
     if (($update || $debug) && scalar(keys(%{$updatedata}))) {
 	my $sql = "UPDATE ".$tablename." SET ";
 	my (@u_fields, @u_datas);
-	while (my ($fld, $dat) = each %{$updatedata}) {
-	    push(@u_fields, $fld);
-	    push(@u_datas, $dat);
-	}
+        foreach my $k (sort keys(%{$updatedata})) {
+            push(@u_fields, $k);
+            push(@u_datas, $updatedata->{$k});
+        }
 	$sql = $sql . join("=?, ", @u_fields) . "=?";
 	$sql = $sql . " WHERE tagfield=? AND frameworkcode=?";
 	push(@u_datas, $tag);
@@ -438,10 +438,10 @@ sub mk_sql_insert {
 	}
 
 	my (@u_fields, @u_datas);
-	while (my ($fld, $dat) = each %datas) {
-	    push(@u_fields, $fld);
-	    push(@u_datas, $dat);
-	}
+        foreach my $k (sort keys(%datas)) {
+            push(@u_fields, $k);
+            push(@u_datas, $datas{$k});
+        }
 
 	my $qmarks = ("?," x scalar(@u_fields));
 	$qmarks =~ s/,$//;
