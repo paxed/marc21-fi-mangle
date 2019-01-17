@@ -65,6 +65,7 @@ my $update = 0;
 my $bib_or_auth = 'marc';
 my $frameworkcode = '';
 my $hidden_value = -6; # intranet,opac
+my $set_existing_hidden = 0;
 
 GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (exists($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { warn "Unknown db setting '".$onam."'."; } },
@@ -76,6 +77,7 @@ GetOptions(
     'xml=s' => \$xml_glob,
     'insert' => \$insert,
     'update' => \$update,
+    'setflags' => \$set_existing_hidden,
     'auth' => sub { $bib_or_auth = 'auth'; },
     'bib|bibs' => sub { $bib_or_auth = 'marc'; },
     'framework=s' => \$frameworkcode,
@@ -391,6 +393,12 @@ sub check_need_update {
 	print fwcname($fwc)."$ftag repeatable: Koha:".yesno($ct->{'repeatable'}).", Format:".yesno($cfd->{'repeatable'})."\n";
 	$updatedata{'repeatable'} = $cfd->{'repeatable'};
     }
+
+    if ($set_existing_hidden && $ct->{'tagsubfield'} && $ct->{'tagsubfield'} ne '@') {
+	print fwcname($fwc)."$ftag set flags=".$koha_hidden_flags{$hidden_value}."\n";
+	$updatedata{'hidden'} = $hidden_value;
+    }
+
     return \%updatedata;
 }
 
@@ -566,6 +574,10 @@ Insert missing field data into the Koha database.
 
 Update field data in the Koha database to match the format spec.
 Updates the field descriptions and repeatability.
+
+=item B<-setflags>
+
+If updating existing fields (with -update), also update the field flags.
 
 =item B<-auth>
 
