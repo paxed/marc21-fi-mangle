@@ -394,8 +394,8 @@ sub check_need_update {
 	$updatedata{'repeatable'} = $cfd->{'repeatable'};
     }
 
-    if ($set_existing_hidden && $ct->{'tagsubfield'} && $ct->{'tagsubfield'} ne '@') {
-	print fwcname($fwc)."$ftag set flags=".$koha_hidden_flags{$hidden_value}."\n";
+    if ($set_existing_hidden && $ct->{'tagsubfield'} && $ct->{'tagsubfield'} ne '@' && $hidden_value != $ct->{'hidden'}) {
+	print fwcname($fwc)."$ftag set flags=".$koha_hidden_flags{$hidden_value}." (was:".$koha_hidden_flags{$ct->{'hidden'}}.")\n";
 	$updatedata{'hidden'} = $hidden_value;
     }
 
