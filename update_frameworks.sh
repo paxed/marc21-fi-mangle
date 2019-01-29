@@ -8,13 +8,14 @@ MAILI_TO=myemail@example.com
 MAILI_FROM=fromemail@example.com
 MAILI_SUBJ="Luettelointipohjien muutokset"
 MAILI_TEXT=""
+DBPARAMS="-db username=root -db password='' -db dbname=koha -db hostname=127.0.0.1"
+
 
 PVM=$(date +%Y%m%d)
 FILEA=/tmp/upsert_${TUNNUS}_default.log
 FILEB=/tmp/upsert_${TUNNUS}_kaikki.log
 FILEC=/tmp/${TUNNUS}_marc21_framework_updates_${PVM}.log
 FILEE=/tmp/upsert_${TUNNUS}_errors.log
-DBPARAMS="-db username=root -db password='' -db dbname=koha -db hostname=127.0.0.1"
 
 if [ ! -e "$FILEC" ]; then
     # default framework
