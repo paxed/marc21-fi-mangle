@@ -19,10 +19,10 @@ FILEE=/tmp/upsert_${TUNNUS}_errors.log
 
 if [ ! -e "$FILEC" ]; then
     # default framework
-    perl upsert_marc_fields.pl $DBPARAMS --flags=intranet,opac,editor --insert --update > "$FILEA" 2> "$FILEE"
+    eval perl upsert_marc_fields.pl $DBPARAMS --flags=intranet,opac,editor --insert --update > "$FILEA" 2> "$FILEE"
 
     # all other frameworks
-    perl upsert_marc_fields.pl $DBPARAMS --framework='*-' --flags=intranet,opac --insert --update > "$FILEB" 2>> "$FILEE"
+    eval perl upsert_marc_fields.pl $DBPARAMS --framework='*-' --flags=intranet,opac --insert --update > "$FILEB" 2>> "$FILEE"
 
     cat "$FILEE" > "$FILEC"
     cat "$FILEA" >> "$FILEC"
