@@ -66,6 +66,7 @@ my $bib_or_auth = 'marc';
 my $frameworkcode = '';
 my $hidden_value = -6; # intranet,opac
 my $set_existing_hidden = 0;
+my $dryrun = 0;
 
 GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (exists($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { warn "Unknown db setting '".$onam."'."; } },
@@ -73,6 +74,7 @@ GetOptions(
     'onlyfields=s' => \$only_fields_param,
     'help|h|?' => \$help,
     'man' => \$man,
+    'dryrun|dry-run' => \$dryrun,
     'debug' => \$debug,
     'xml=s' => \$xml_glob,
     'insert' => \$insert,
@@ -533,14 +535,14 @@ sub update_db_tags {
 }
 
 read_xml($xml_glob);
-db_query_alltags();
+db_query_alltags() if (!$dryrun);
 
 if ($debug) {
     print "Data from XML:\n".Dumper(\%field_data);
     print "Data from Koha database:\n".Dumper(\%tags);
 }
 
-update_db_tags();
+update_db_tags() if (!$dryrun);
 
 
 
