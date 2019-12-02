@@ -12,7 +12,7 @@ use MARC::Record;
 use MARC::File::XML (BinaryEncoding => 'UTF-8');
 use MARC::Charset;
 use DBI;
-use XML::Simple;
+use XML::LibXML;
 
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
@@ -254,15 +254,15 @@ sub handle_code {
 sub parse_single_field {
     my ($field, $data) = @_;
 
-    my $name = $field->{'name'};
-    my $tag = $field->{'tag'};
-    my $type = $field->{'type'} || '';
-    my $repeatable = $field->{'repeatable'} || '';
+    my $name = $field->findvalue('name');
+    my $tag = $field->getAttribute('tag');
+    my $type = $field->getAttribute('type') || '';
+    my $repeatable = $field->getAttribute('repeatable') || '';
 
     if ($tag =~ /x/i) {
         my @tags = generate_tag_sequence($tag);
         foreach my $tmptag (@tags) {
-            $field->{'tag'} = $tmptag;
+            $field->setAttribute('tag', $tmptag);
             parse_single_field($field, $data);
         }
         return;
@@ -270,20 +270,12 @@ sub parse_single_field {
 
     handle_code($tag, $name, $repeatable);
 
-    if (defined($field->{'subfields'}{'subfield'})) {
-        my $subfields = $field->{'subfields'}{'subfield'};
-        my @subfieldarr;
-
-        if (ref($subfields) eq 'ARRAY') {
-            @subfieldarr = @{$subfields};
-        } else {
-            @subfieldarr = $subfields;
-        }
-
-        foreach my $sf (@subfieldarr) {
-            my $sf_code = $sf->{'code'};
-            my $sf_repeatable = $sf->{'repeatable'};
-            my $sf_name = $sf->{'name'};
+    my @sfdom = $field->findnodes('subfields/subfield');
+    if (scalar(@sfdom) > 0) {
+        foreach my $sf (@sfdom) {
+            my $sf_code = $sf->getAttribute('code');
+            my $sf_repeatable = $sf->getAttribute('repeatable');
+            my $sf_name = $sf->findvalue('name');
 
             if ($sf_code =~ /^.-.$/) {
                 my ($code_s, $code_e) = split(/-/, $sf_code);
@@ -299,38 +291,31 @@ sub parse_single_field {
     }
 }
 
-
-sub parse_multiple_fields {
-    my ($fieldsref, $data) = @_;
-
-    my @fieldarr;
-
-    if (ref($fieldsref) eq 'ARRAY') {
-        @fieldarr = @{$fieldsref};
-    } else {
-        @fieldarr = $fieldsref;
-    }
-
-    foreach my $field (@fieldarr) {
-        parse_single_field($field, $data);
-    }
-}
-
 sub parse_xml_data {
     my ($filename, $data) = @_;
 
-    my $tpp = XML::Simple->new();
-    my $tree = $tpp->XMLin($filename, KeyAttr => []);
+    my $dom = XML::LibXML->load_xml(location => $filename);
 
-    if (defined($tree->{'leader-directory'})) {
-        $tree->{'leader-directory'}{'leader'}{'tag'} = '000';
-        parse_multiple_fields($tree->{'leader-directory'}{'leader'}, $data);
-    } elsif (defined($tree->{'controlfields'})) {
-        parse_multiple_fields($tree->{'controlfields'}{'controlfield'}, $data);
-    } elsif (defined($tree->{'datafields'})) {
-        parse_multiple_fields($tree->{'datafields'}{'datafield'}, $data);
-    } else {
-        warn "parse_xml_data: unhandled file $filename" if ($debug);
+    my @ldr = $dom->findnodes('//fields/leader-directory');
+    if (scalar(@ldr) > 0) {
+        foreach my $tag (@ldr) {
+            $tag->setAttribute('tag', '000');
+            parse_single_field($tag, $data);
+        }
+    }
+
+    my @ctrls = $dom->findnodes('//fields/controlfields/controlfield');
+    if (scalar(@ctrls) > 0) {
+        foreach my $tag (@ctrls) {
+            parse_single_field($tag, $data);
+        }
+    }
+
+    my @datas = $dom->findnodes('//fields/datafields/datafield');
+    if (scalar(@datas) > 0) {
+        foreach my $tag (@datas) {
+            parse_single_field($tag, $data);
+        }
     }
 }
 
