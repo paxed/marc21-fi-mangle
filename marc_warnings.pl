@@ -381,7 +381,7 @@ sub parse_xml_data {
 
     my $dom = XML::LibXML->load_xml(location => $filename);
 
-    my @ldr = $dom->findnodes('//fields/leader-directory');
+    my @ldr = $dom->findnodes('//fields/leader-directory/leader');
     if (scalar(@ldr) > 0) {
         foreach my $tag (@ldr) {
             $tag->setAttribute('tag', '000');
