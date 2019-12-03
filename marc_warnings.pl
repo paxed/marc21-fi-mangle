@@ -7,7 +7,7 @@ use MARC::Record;
 use MARC::File::XML (BinaryEncoding => 'UTF-8');
 use MARC::Charset;
 use DBI;
-use XML::Simple;
+use XML::LibXML;
 
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
@@ -269,15 +269,15 @@ sub generate_tag_sequence {
 sub parse_single_field {
     my ($field, $data) = @_;
 
-    #my $name = $field->{'name'};
-    my $tag = $field->{'tag'};
-    my $type = $field->{'type'} || '';
-    my $repeatable = $field->{'repeatable'} || '';
+    #my $name = $field->findvalue('name');
+    my $tag = $field->getAttribute('tag');
+    my $type = $field->getAttribute('type') || '';
+    my $repeatable = $field->getAttribute('repeatable') || '';
 
     if ($tag =~ /x/i) {
         my @tags = generate_tag_sequence($tag);
         foreach my $tmptag (@tags) {
-            $field->{'tag'} = $tmptag;
+            $field->setAttribute('tag', $tmptag);
             parse_single_field($field, $data);
         }
         return;
@@ -297,84 +297,46 @@ sub parse_single_field {
     $valid_fields{$tag} = 1;
     $not_repeatable{$tag . $type} = 1 if ($repeatable eq 'N');
 
-    if (defined($field->{'indicators'}{'indicator'})) {
-        my $indicators = $field->{'indicators'}{'indicator'};
-        my @indicatorarr;
-
-        if (ref($indicators) eq 'ARRAY') {
-            @indicatorarr = @{$indicators};
-        } else {
-            @indicatorarr = $indicators;
-        }
-
-        foreach my $ind (@indicatorarr) {
-            my $ind_num = $ind->{'num'};
-            my $ind_values = $ind->{'values'}{'value'};
-            my @ind_valuearr;
+    my @inddom = $field->findnodes('indicators/indicator');
+    if (scalar(@inddom) > 0) {
+        foreach my $ind (@inddom) {
+            my $ind_num = $ind->getAttribute('num');
+            my @ind_values = $ind->findnodes('values/value');
             my $allowed_ind_values = '';
 
-            next if (!defined($ind_values));
-
-            if (ref($ind_values) eq 'ARRAY') {
-                @ind_valuearr = @{$ind_values};
-            } else {
-                @ind_valuearr = $ind_values;
-            }
-            foreach my $indval (@ind_valuearr) {
-                my $ivcode = $indval->{'code'};
+            foreach my $indval (@ind_values) {
+                my $ivcode = $indval->getAttribute('code');
                 $ivcode =~ s/#/ /g;
                 $allowed_ind_values .= $ivcode;
             }
-            $allow_indicators{$tag . $ind_num} = $allowed_ind_values;
+            $allow_indicators{$tag . $ind_num} = $allowed_ind_values if ($allowed_ind_values ne '');
         }
     }
 
 
-    if (defined($field->{'subfields'}{'subfield'})) {
-        my $subfields = $field->{'subfields'}{'subfield'};
-        my @subfieldarr;
-
-        if (ref($subfields) eq 'ARRAY') {
-            @subfieldarr = @{$subfields};
-        } else {
-            @subfieldarr = $subfields;
-        }
-
-        foreach my $sf (@subfieldarr) {
-            my $sf_code = $sf->{'code'};
-            my $sf_repeatable = $sf->{'repeatable'};
-            my $sf_name = $sf->{'name'};
+    my @sfdom = $field->findnodes('subfields/subfield');
+    if (scalar(@sfdom) > 0) {
+        foreach my $sf (@sfdom) {
+            my $sf_code = $sf->getAttribute('code');
+            my $sf_repeatable = $sf->getAttribute('repeatable');
+            my $sf_name = $sf->findvalue('name');
 
             $valid_fields{$tag . $sf_code} = 1;
             $not_repeatable{$tag . $sf_code . $type} = 1 if ($sf_repeatable eq 'N');
         }
     }
 
-    if (defined($field->{'positions'}{'position'})) {
-        my $positions = $field->{'positions'}{'position'};
-        my @positionarr;
-
-        if (ref($positions) eq 'ARRAY') {
-            @positionarr = @{$positions};
-        } else {
-            @positionarr = $positions;
-        }
-
-        foreach my $p (@positionarr) {
-            my $pos = $p->{'pos'};
-            my $equals = $p->{'equals'};
+    my @posdom = $field->findnodes('positions/position');
+    if (scalar(@posdom) > 0) {
+        foreach my $p (@posdom) {
+            my $pos = $p->getAttribute('pos');
+            my @equals = $p->findnodes('equals');
+            my @pvalues = $p->findnodes('values/value');
             my @vals;
 
-            if (defined($p->{'values'}{'value'})) {
-                my $pvalues = $p->{'values'}{'value'};
-                my @pvaluearr;
-                if (ref($pvalues) eq 'ARRAY') {
-                    @pvaluearr = @{$pvalues};
-                } else {
-                    @pvaluearr = $pvalues;
-                }
-                foreach my $pv (@pvaluearr) {
-                    my $pv_code = $pv->{'code'};
+            if (scalar(@pvalues) > 0) {
+                foreach my $pv (@pvalues) {
+                    my $pv_code = $pv->getAttribute('code');
                     $pv_code =~ s/#/ /g;
                     $regex_field{$tag . $type}{$pos} = [] if (!defined($regex_field{$tag . $type}{$pos}));
                     push @{$regex_field{$tag . $type}{$pos}}, $pv_code;
@@ -387,18 +349,20 @@ sub parse_single_field {
 		    }
                 }
 
-                if (defined($equals)) {
-                    my $eq_tag = $equals->{'tag'};
-                    my $eq_pos = $equals->{'positions'};
-                    $regex_field{$eq_tag . $type}{$eq_pos} = [] if (!defined($regex_field{$eq_tag . $type}{$eq_pos}));
-                    @{$regex_field{$eq_tag . $type}{$eq_pos}} = @{$regex_field{$tag . $type}{$pos}};
+                if (scalar(@equals) > 0) {
+                    foreach my $eq (@equals) {
+                        my $eq_tag = $eq->getAttribute('tag');
+                        my $eq_pos = $eq->getAttribute('positions');
+                        $regex_field{$eq_tag . $type}{$eq_pos} = [] if (!defined($regex_field{$eq_tag . $type}{$eq_pos}));
+                        @{$regex_field{$eq_tag . $type}{$eq_pos}} = @{$regex_field{$tag . $type}{$pos}};
 
-                    $allow_regex{$eq_tag . $type}{$eq_pos} = [] if (!defined($allow_regex{$eq_tag . $type}{$eq_pos}));
-		    if (ref($allow_regex{$eq_tag . $type}{$eq_pos}) eq 'ARRAY') {
-			@{$allow_regex{$eq_tag . $type}{$eq_pos}} = @{$allow_regex{$tag . $type}{$pos}};
-		    } else {
-			print STDERR "allow_regex equals is not array for '$eq_tag' '$type' '$eq_pos'"
-		    }
+                        $allow_regex{$eq_tag . $type}{$eq_pos} = [] if (!defined($allow_regex{$eq_tag . $type}{$eq_pos}));
+                        if (ref($allow_regex{$eq_tag . $type}{$eq_pos}) eq 'ARRAY') {
+                            @{$allow_regex{$eq_tag . $type}{$eq_pos}} = @{$allow_regex{$tag . $type}{$pos}};
+                        } else {
+                            print STDERR "allow_regex equals is not array for '$eq_tag' '$type' '$eq_pos'"
+                        }
+                    }
                 }
             }
         }
@@ -412,37 +376,31 @@ sub parse_single_field {
     $data->{'allow_regex'} = \%allow_regex;
 }
 
-sub parse_multiple_fields {
-    my ($fieldsref, $data) = @_;
-
-    my @fieldarr;
-
-    if (ref($fieldsref) eq 'ARRAY') {
-        @fieldarr = @{$fieldsref};
-    } else {
-        @fieldarr = $fieldsref;
-    }
-
-    foreach my $field (@fieldarr) {
-        parse_single_field($field, $data);
-    }
-}
-
 sub parse_xml_data {
     my ($filename, $data) = @_;
 
-    my $tpp = XML::Simple->new();
-    my $tree = $tpp->XMLin($filename, KeyAttr => []);
+    my $dom = XML::LibXML->load_xml(location => $filename);
 
-    if (defined($tree->{'leader-directory'})) {
-        $tree->{'leader-directory'}{'leader'}{'tag'} = '000';
-        parse_multiple_fields($tree->{'leader-directory'}{'leader'}, $data);
-    } elsif (defined($tree->{'controlfields'})) {
-        parse_multiple_fields($tree->{'controlfields'}{'controlfield'}, $data);
-    } elsif (defined($tree->{'datafields'})) {
-        parse_multiple_fields($tree->{'datafields'}{'datafield'}, $data);
-    } else {
-        #warn "parse_marc21_format_xml: unhandled file $filename";
+    my @ldr = $dom->findnodes('//fields/leader-directory');
+    if (scalar(@ldr) > 0) {
+        foreach my $tag (@ldr) {
+            $tag->setAttribute('tag', '000');
+            parse_single_field($tag, $data);
+        }
+    }
+
+    my @ctrls = $dom->findnodes('//fields/controlfields/controlfield');
+    if (scalar(@ctrls) > 0) {
+        foreach my $tag (@ctrls) {
+            parse_single_field($tag, $data);
+        }
+    }
+
+    my @datas = $dom->findnodes('//fields/datafields/datafield');
+    if (scalar(@datas) > 0) {
+        foreach my $tag (@datas) {
+            parse_single_field($tag, $data);
+        }
     }
 }
 
@@ -641,7 +599,7 @@ sub check_marc {
     $record->append_fields(MARC::Field->new('000', $record->leader()));
 
     foreach my $f ($record->field('...')) {
-	my $fi = $f->{'_tag'};
+	my $fi = $f->tag();
 	my $fityp = get_field_tagntype($f, $record);
 
 	next if (defined($ignore_fields{$fi}) || defined($ignore_fields{$fityp}));
@@ -854,11 +812,13 @@ Print progress bars.
 
 =item B<-bibs>
 
+=item B<-holds>
+
 =item B<-koha>
 
 =item B<-evergreen>
 
-Use preset values. Requires one of B<-auth> or B<-bibs> and one of B<-koha> or B<-evergreen>.
+Use preset values. Requires one of B<-auth>, B<-bibs>, or B<-holds>, and one of B<-koha>, or B<-evergreen>.
 Defaults to B<-koha> and B<-bibs>.
 
 =item B<-biburl=urlformat>
@@ -868,8 +828,8 @@ Use %s as the biblio id number placeholder in the urlformat string.
 
 =item B<-xml=filename>
 
-Set the XML file where MARC21 format rules are read from. Default depends on B<-auth> or
-B<-bibs> option: data/aukt.xml or data/bibs.xml, respectively.
+Set the filename glob where MARC21 format rules are read from. Default depends on B<-auth>, or
+B<-bibs>, or B<-holds> option: data/aukt-*.xml, data/bibs-*.xml, or data/hold-*.xml, respectively.
 
 =item B<-marcxml=filename>
 
