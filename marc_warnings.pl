@@ -75,12 +75,6 @@ my %field_data = (
 	    '005' => {
 		'x' => '^[0-9]{14}\.[0-9]$',
 	    },
-            '006' => {
-                '00' => '[acdefgijkmoprst]', # FIXME: Get these from format XML
-            },
-            '007' => {
-                '00' => '[acdfghkmoqrstvz]', # FIXME: Get these from format XML
-            }
 	},
     },
     'auth' => {
@@ -207,7 +201,7 @@ sub sort_by_number {
 sub get_field_tagntype {
     my ($f, $record) = @_;
 
-    my $tag = $f->{'_tag'};
+    my $tag = $f->tag();
 
     if ($tag eq '006') {
         my $data = substr($f->data(), 0, 1) || '';
@@ -472,7 +466,8 @@ sub quoted_str_list {
     my ($lst) = @_;
     my $ret = '';
     if (defined($lst)) {
-	my @arr = @{$lst};
+        my @arr = do { my %seen; grep { !$seen{$_}++ } @{$lst} };
+
 	my $haspipes = 0;
 	my $len = 0;
 	my %lens;
@@ -520,7 +515,8 @@ sub copy_allow_to_regex {
     my %re = %{$regex};
 
     foreach my $alkey (keys (%al)) {
-	foreach my $xlkey (sort keys (%{$al{$alkey}})) {
+        my @arr = sort do { my %seen; grep { !$seen{$_}++ } keys (%{$al{$alkey}}) };
+	foreach my $xlkey (@arr) {
 	    $re{$alkey} = {} if (!defined($re{$alkey}));
 	    $re{$alkey}{$xlkey} = qr/$al{$alkey}{$xlkey}/ if (!defined($re{$alkey}{$xlkey}));
 	}
@@ -679,12 +675,12 @@ sub check_marc {
 	$mainf{$fi} = 0 if (!defined($mainf{$fi}));
 	$mainf{$fi}++;
 
-	my @subf = @{$f->{'_subfields'}};
+	my @subf = $f->subfields();
 	my %subff;
 
-	while ($#subf > 0) {
-	    my $key = shift @subf;
-	    my $val = shift @subf;
+	foreach my $sf (@subf) {
+	    my $key = $sf->[0];
+	    my $val = $sf->[1];
 	    my $fikey = $fi.$key;
 
 	    next if (defined($ignore_fields{$fikey}));
