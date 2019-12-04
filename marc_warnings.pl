@@ -260,6 +260,56 @@ sub generate_tag_sequence {
     return @fields;
 }
 
+sub parse_positions {
+    my ($field, $data, $tag, $type, $subfield) = @_;
+
+    my @posdom = $field->findnodes('positions/position');
+    if (scalar(@posdom) > 0) {
+        foreach my $p (@posdom) {
+            my $pos = $p->getAttribute('pos');
+            my @equals = $p->findnodes('equals');
+            my @pvalues = $p->findnodes('values/value');
+            my @vals;
+
+	    $pos =~ s/^\///;
+
+            if (scalar(@pvalues) > 0) {
+		my $fcode = $tag . $subfield . $type;
+                foreach my $pv (@pvalues) {
+                    my $pv_code = $pv->getAttribute('code');
+                    $pv_code =~ s/#/ /g;
+                    $data->{'regex'}{$fcode}{$pos} = [] if (!defined($data->{'regex'}{$fcode}{$pos}));
+                    push @{$data->{'regex'}{$fcode}{$pos}}, $pv_code;
+
+                    $data->{'allow_regex'}{$fcode}{$pos} = [] if (!defined($data->{'allow_regex'}{$fcode}{$pos}));
+		    if (ref($data->{'allow_regex'}{$fcode}{$pos}) eq 'ARRAY') {
+			push @{$data->{'allow_regex'}{$fcode}{$pos}}, $pv_code;
+		    } else {
+			print STDERR "allow_regex is not array for '$fcode/$pos' '$pv_code'";
+		    }
+                }
+
+                if (scalar(@equals) > 0) {
+                    foreach my $eq (@equals) {
+                        my $eq_tag = $eq->getAttribute('tag');
+                        my $eq_pos = $eq->getAttribute('positions');
+			my $efcode =  $eq_tag . $type;
+                        $data->{'regex'}{$efcode}{$eq_pos} = [] if (!defined($data->{'regex'}{$efcode}{$eq_pos}));
+                        @{$data->{'regex'}{$efcode}{$eq_pos}} = @{$data->{'regex'}{$fcode}{$pos}};
+
+                        $data->{'allow_regex'}{$efcode}{$eq_pos} = [] if (!defined($data->{'allow_regex'}{$efcode}{$eq_pos}));
+                        if (ref($data->{'allow_regex'}{$efcode}{$eq_pos}) eq 'ARRAY') {
+                            @{$data->{'allow_regex'}{$efcode}{$eq_pos}} = @{$data->{'allow_regex'}{$fcode}{$pos}};
+                        } else {
+                            print STDERR "allow_regex equals is not array for '$eq_tag' '$type' '$eq_pos'"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 sub parse_single_field {
     my ($field, $data) = @_;
 
@@ -277,19 +327,12 @@ sub parse_single_field {
         return;
     }
 
-    my %valid_fields = %{$data->{'valid_fields'}};
-    my %not_repeatable = %{$data->{'not_repeatable'}};
-    my %allow_indicators = %{$data->{'allow_indicators'}};
-    my %typed_field = %{$data->{'typed'}};
-    my %regex_field = %{$data->{'regex'}};
-    my %allow_regex = %{$data->{'allow_regex'}};
-
     $type = '' if ($type eq 'yleista');
     $type = "-".$type if ($type ne '');
-    $typed_field{$tag} = 1 if ($type ne '');
+    $data->{'typed'}{$tag} = 1 if ($type ne '');
 
-    $valid_fields{$tag} = 1;
-    $not_repeatable{$tag . $type} = 1 if ($repeatable eq 'N');
+    $data->{'valid_fields'}{$tag} = 1;
+    $data->{'not_repeatable'}{$tag . $type} = 1 if ($repeatable eq 'N');
 
     my @inddom = $field->findnodes('indicators/indicator');
     if (scalar(@inddom) > 0) {
@@ -303,7 +346,7 @@ sub parse_single_field {
                 $ivcode =~ s/#/ /g;
                 $allowed_ind_values .= $ivcode;
             }
-            $allow_indicators{$tag . $ind_num} = $allowed_ind_values if ($allowed_ind_values ne '');
+            $data->{'allow_indicators'}{$tag . $ind_num} = $allowed_ind_values if ($allowed_ind_values ne '');
         }
     }
 
@@ -315,59 +358,14 @@ sub parse_single_field {
             my $sf_repeatable = $sf->getAttribute('repeatable');
             my $sf_name = $sf->findvalue('name');
 
-            $valid_fields{$tag . $sf_code} = 1;
-            $not_repeatable{$tag . $sf_code . $type} = 1 if ($sf_repeatable eq 'N');
+            $data->{'valid_fields'}{$tag . $sf_code} = 1;
+            $data->{'not_repeatable'}{$tag . $sf_code . $type} = 1 if ($sf_repeatable eq 'N');
+
+	    parse_positions($sf, $data, $tag, $type, $sf_code);
         }
     }
 
-    my @posdom = $field->findnodes('positions/position');
-    if (scalar(@posdom) > 0) {
-        foreach my $p (@posdom) {
-            my $pos = $p->getAttribute('pos');
-            my @equals = $p->findnodes('equals');
-            my @pvalues = $p->findnodes('values/value');
-            my @vals;
-
-            if (scalar(@pvalues) > 0) {
-                foreach my $pv (@pvalues) {
-                    my $pv_code = $pv->getAttribute('code');
-                    $pv_code =~ s/#/ /g;
-                    $regex_field{$tag . $type}{$pos} = [] if (!defined($regex_field{$tag . $type}{$pos}));
-                    push @{$regex_field{$tag . $type}{$pos}}, $pv_code;
-
-                    $allow_regex{$tag . $type}{$pos} = [] if (!defined($allow_regex{$tag . $type}{$pos}));
-		    if (ref($allow_regex{$tag . $type}{$pos}) eq 'ARRAY') {
-			push @{$allow_regex{$tag . $type}{$pos}}, $pv_code;
-		    } else {
-			print STDERR "allow_regex is not array for '$tag' '$type' '$pos' '$pv_code'";
-		    }
-                }
-
-                if (scalar(@equals) > 0) {
-                    foreach my $eq (@equals) {
-                        my $eq_tag = $eq->getAttribute('tag');
-                        my $eq_pos = $eq->getAttribute('positions');
-                        $regex_field{$eq_tag . $type}{$eq_pos} = [] if (!defined($regex_field{$eq_tag . $type}{$eq_pos}));
-                        @{$regex_field{$eq_tag . $type}{$eq_pos}} = @{$regex_field{$tag . $type}{$pos}};
-
-                        $allow_regex{$eq_tag . $type}{$eq_pos} = [] if (!defined($allow_regex{$eq_tag . $type}{$eq_pos}));
-                        if (ref($allow_regex{$eq_tag . $type}{$eq_pos}) eq 'ARRAY') {
-                            @{$allow_regex{$eq_tag . $type}{$eq_pos}} = @{$allow_regex{$tag . $type}{$pos}};
-                        } else {
-                            print STDERR "allow_regex equals is not array for '$eq_tag' '$type' '$eq_pos'"
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    $data->{'valid_fields'} = \%valid_fields;
-    $data->{'not_repeatable'} = \%not_repeatable;
-    $data->{'allow_indicators'} = \%allow_indicators;
-    $data->{'typed'} = \%typed_field;
-    $data->{'regex'} = \%regex_field;
-    $data->{'allow_regex'} = \%allow_regex;
+    parse_positions($field, $data, $tag, $type, '');
 }
 
 sub parse_xml_data {
@@ -564,6 +562,57 @@ sub output_err {
     }
 }
 
+sub check_regexkeys {
+    my ($f, $data, $tag, $tagntype, $subfield) = @_;
+
+    my @errors;
+    my @regexkeys;
+    push(@regexkeys, $tag.$subfield) if (defined($field_data{$auth_or_bibs}{'regex'}{$tag.$subfield}));
+    push(@regexkeys, $tagntype.$subfield) if ($tag ne $tagntype && defined($field_data{$auth_or_bibs}{'regex'}{$tagntype.$subfield}));
+    push(@regexkeys, $tag.'-kaikki'.$subfield) if (defined($field_data{$auth_or_bibs}{'regex'}{$tag.'-kaikki'.$subfield}));
+    if (scalar(@regexkeys)) {
+	foreach my $rk (sort @regexkeys ) {
+	    my $s;
+	    my $showrk = $rk;
+	    if ($tag eq $tagntype && $rk =~ /^(...)(.)$/) {
+		$showrk = $1 . '$' . $2;
+	    }
+
+	    my $zf = $field_data{$auth_or_bibs}{'regex'}{$rk};
+	    my %ff = %{$zf};
+	    foreach my $ffk (sort(sort_by_number keys(%ff))) {
+
+		my $allow_vals = $field_data{$auth_or_bibs}{'allow_regex'}{$rk}{$ffk};
+
+		if ($ffk =~ /^\d+$/) {
+		    $s = length($data) < int($ffk) ? '' : substr($data, int($ffk), 1);
+
+		    if ($s !~ /$ff{$ffk}/) {
+			push(@errors, "$showrk/$ffk illegal value \"$s\", should be $allow_vals");
+			next;
+		    }
+		} elsif ($ffk =~ /^(\d+)-(\d+)$/) {
+		    my ($kstart, $kend) = (int($1), int($2));
+		    $s = length($data) < $kend ? '' : substr($data, $kstart, $kend - $kstart + 1);
+
+		    if ($s !~ /$ff{$ffk}/) {
+			push(@errors, "$showrk/$ffk illegal value \"$s\", should be $allow_vals");
+			next;
+		    }
+		} else {
+		    $s = $data || "";
+
+		    if ($s !~ /$ff{$ffk}/) {
+			push(@errors, "$showrk illegal value \"$s\", does not match $allow_vals");
+			next;
+		    }
+		}
+	    }
+	}
+    }
+    return \@errors;
+}
+
 sub check_marc {
     my ($id, $marc, $urllink) = @_;
 
@@ -616,47 +665,8 @@ sub check_marc {
 		}
 	    }
 
-	    my @regexkeys;
-	    push(@regexkeys, $fi) if (defined($field_data{$auth_or_bibs}{'regex'}{$fi}));
-	    push(@regexkeys, $fityp) if ($fi ne $fityp && defined($field_data{$auth_or_bibs}{'regex'}{$fityp}));
-	    push(@regexkeys, $fi.'-kaikki') if (defined($field_data{$auth_or_bibs}{'regex'}{$fi.'-kaikki'}));
-	    if (scalar(@regexkeys)) {
-		my $data = $f->data();
-
-		foreach my $rk (sort @regexkeys ) {
-		    my $s;
-
-		    my $zf = $field_data{$auth_or_bibs}{'regex'}{$rk};
-		    my %ff = %{$zf};
-		    foreach my $ffk (sort(sort_by_number keys(%ff))) {
-
-                        my $allow_vals = $field_data{$auth_or_bibs}{'allow_regex'}{$rk}{$ffk};
-
-			if ($ffk =~ /^\d+$/) {
-			    $s = length($data) < int($ffk) ? '' : substr($data, int($ffk), 1);
-
-			    if ($s !~ /$ff{$ffk}/) {
-				push(@errors, "$rk/$ffk illegal value \"$s\", should be $allow_vals");
-				next;
-			    }
-			} elsif ($ffk =~ /^(\d+)-(\d+)$/) {
-			    my ($kstart, $kend) = (int($1), int($2));
-			    $s = length($data) < $kend ? '' : substr($data, $kstart, $kend - $kstart + 1);
-
-			    if ($s !~ /$ff{$ffk}/) {
-				push(@errors, "$rk/$ffk illegal value \"$s\", should be $allow_vals");
-				next;
-			    }
-			} else {
-			    $s = $data || "";
-
-			    if ($s !~ /$ff{$ffk}/) {
-				push(@errors, "$rk illegal value \"$s\", does not match $allow_vals");
-				next;
-			    }
-			}
-		    }
-		}
+	    if ($f->is_control_field()) {
+		push(@errors, @{check_regexkeys($f, $f->data(), $fi, $fityp, '')});
 	    }
 	}
 
@@ -677,7 +687,6 @@ sub check_marc {
 
 	my @subf = $f->subfields();
 	my %subff;
-
 	foreach my $sf (@subf) {
 	    my $key = $sf->[0];
 	    my $val = $sf->[1];
@@ -690,6 +699,8 @@ sub check_marc {
 		#push(@errors, "field $fikey not defined by format");
 		next;
 	    }
+
+	    push(@errors, @{check_regexkeys($sf, $val, $fi, $fityp, $key)});
 
 	    $subff{$fikey} = 0 if (!defined($subff{$fikey}));
 	    $subff{$fikey}++;
