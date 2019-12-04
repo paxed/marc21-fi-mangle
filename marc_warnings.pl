@@ -268,7 +268,7 @@ sub parse_positions {
         foreach my $p (@posdom) {
             my $pos = $p->getAttribute('pos');
             my @equals = $p->findnodes('equals');
-            my @pvalues = $p->findnodes('values/value');
+            my @pvalues = $p->findnodes('alternatives/alternative/values/value|values/value');
             my @vals;
 
 	    $pos =~ s/^\///;
