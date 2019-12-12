@@ -358,10 +358,20 @@ sub parse_single_field {
             my $sf_repeatable = $sf->getAttribute('repeatable');
             my $sf_name = $sf->findvalue('name');
 
-            $data->{'valid_fields'}{$tag . $sf_code} = 1;
-            $data->{'not_repeatable'}{$tag . $sf_code . $type} = 1 if ($sf_repeatable eq 'N');
+            my $sf_a;
+            my $sf_b;
+            if ($sf_code =~ /^(.)-(.)$/) {
+                $sf_a = $1;
+                $sf_b = $2;
+            } else {
+                $sf_a = $sf_b = $sf_code;
+            }
 
-	    parse_positions($sf, $data, $tag, $type, $sf_code);
+            for my $sfc ($sf_a .. $sf_b) {
+                $data->{'valid_fields'}{$tag . $sfc} = 1;
+                $data->{'not_repeatable'}{$tag . $sfc . $type} = 1 if ($sf_repeatable eq 'N');
+                parse_positions($sf, $data, $tag, $type, $sfc);
+            }
         }
     }
 
