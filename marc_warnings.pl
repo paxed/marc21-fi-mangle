@@ -159,7 +159,7 @@ GetOptions(
     'v|verbose' => \$verbose,
     'a|auth|authority|authorities' => sub { $auth_or_bibs = 'auth'; },
     'b|bib|bibs|biblios' => sub { $auth_or_bibs = 'bibs'; },
-    'hold|holdings' => sub { $auth_or_bibs = 'hold'; },
+    'hold|holds|holdings' => sub { $auth_or_bibs = 'hold'; },
     'koha' => sub { $koha_or_eg = 'koha'; },
     'nodata' => sub { $test_field_data = 0; },
     'eg|evergreen' => sub { $koha_or_eg = 'eg'; },
