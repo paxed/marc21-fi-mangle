@@ -1,6 +1,9 @@
 use strict;
 use warnings;
 
+# Copyright (c) 2020 Pasi Kallinen
+# Licensed under the MIT License, the "Expat" variant.
+
 use Getopt::Long;
 use Pod::Usage;
 use MARC::Record;

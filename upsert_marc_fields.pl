@@ -1,6 +1,9 @@
 use strict;
 use warnings;
 
+# Copyright (c) 2020 Pasi Kallinen
+# Licensed under the MIT License, the "Expat" variant.
+
 #
 # Update and/or insert MARC21 field information from the Finnish
 # National Library's translated machine-readable MARC21 format into Koha
