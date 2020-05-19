@@ -150,6 +150,7 @@ my $biburl;
 my $skip_enclevels = ''; # Encoding levels (ldr/17) values to skip the record
 my $debug = 0;
 my $marcxml = '';
+my $namespace = '';
 
 my $auth_or_bibs = 'bibs';
 my $koha_or_eg = 'koha';
@@ -158,6 +159,7 @@ GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (exists($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { die("Unknown db setting '".$onam."'."); } },
     'xml=s' => \$xml_glob,
     'marcxml=s' => \$marcxml,
+    'namespace=s' => \$namespace,
     'sql=s' => \$sqlquery,
     'v|verbose' => \$verbose,
     'a|auth|authority|authorities' => sub { $auth_or_bibs = 'auth'; },
@@ -635,6 +637,7 @@ sub check_marc {
     };
     if ($@) {
         my @err = ("MARC record error");
+        print STDERR "[[[[[$marc]]]]]\n";
         output_err($id, $urllink, \@err);
         return;
     }
@@ -774,8 +777,49 @@ sub db_disconnect {
 
 if ($marcxml ne '') {
     open my $fh, '<', $marcxml or die "Can't open file $!";
-    my $file_content = do { local $/; <$fh> };
-    check_marc(0, $file_content, 0);
+    my $rec = '';
+    my $inrec = 0;
+    my $ns = '';
+    my $marcid = 0;
+    if ($namespace ne '') {
+        $ns = $namespace . ':';
+    }
+    while ( my $line = <$fh> ) {
+        #print "XXX:$line";
+        if ($inrec && $line =~ /^(.*)(<\/\Q$ns\Erecord[^>]*>)(.*)$/) {
+            my $beginning = $1 || '';
+            my $ending = $2 || '';
+            my $lastpart = $3 || '';
+            #print "YYY:[$beginning]:[$ending]\n";
+            if ($inrec) {
+                if ($rec ne '') {
+                    $rec = $rec . $ending;
+                    $rec =~ s/(<\/?)\Q$ns\E/$1/g;
+                    #warn "[[[[[\n$rec\n]]]]]";
+                    check_marc($marcid, $rec, 0);
+                    $marcid++;
+                    $inrec = 0;
+                    $rec = '';
+                }
+            }
+            $line = $lastpart;
+        }
+        if (!$inrec && $line =~ /^(.*)(<\Q$ns\Erecord.*)$/) {
+            my $ending = $1 || '';
+            my $beginning = $2 || '';
+            $rec = $beginning;
+            $inrec = 1;
+            $line = '';
+        }
+        if ($line !~ /^\s*$/) {
+            if ($inrec) {
+                $rec = $rec . $line;
+            }
+        }
+    }
+
+    #my $file_content = do { local $/; <$fh> };
+    #check_marc(0, $file_content, 0);
 } else {
 
     my $sth;
@@ -853,7 +897,11 @@ B<-bibs>, or B<-holds> option: data/aukt-*.xml, data/bibs-*.xml, or data/hold-*.
 
 =item B<-marcxml=filename>
 
-Read a file containing single marcxml entry, and show warnings for it instead.
+Read a file containing marcxml entries, and show warnings for those instead.
+
+=item B<-namespace=foo>
+
+When reading marcxml from file, use this namespace. Defaults to nothing.
 
 =item B<-sql=text>
 
