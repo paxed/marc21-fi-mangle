@@ -659,6 +659,14 @@ sub check_marc {
 
     $record->append_fields(MARC::Field->new('000', $record->leader()));
 
+    if (!defined($id)) {
+        my $f = $record->field('001');
+        $id = '';
+        $id .= $f->data() if ($f);
+        $f = $record->field('003');
+        $id .= '('.$f->data().')' if ($f);
+    }
+
     foreach my $f ($record->field('...')) {
 	my $fi = $f->tag();
 	my $fityp = get_field_tagntype($f, $record);
@@ -796,7 +804,7 @@ if ($marcxml ne '') {
                     $rec = $rec . $ending;
                     $rec =~ s/(<\/?)\Q$ns\E/$1/g;
                     #warn "[[[[[\n$rec\n]]]]]";
-                    check_marc($marcid, $rec, 0);
+                    check_marc(undef, $rec, 0);
                     $marcid++;
                     $inrec = 0;
                     $rec = '';
