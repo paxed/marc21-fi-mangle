@@ -24,6 +24,10 @@ my %dbdata = (
     'driver' => 'mysql'
     );
 
+my $db_filename = "/etc/koha/koha-conf.xml";
+
+%dbdata = %{_read_db_settings_xml($db_filename, \%dbdata)} if (-f $db_filename && -r $db_filename);
+
 my %presets = (
     'koha-auth' => {
 	'sql' => 'select ExtractValue(marcxml, "//controlfield[@tag=001]") as id, marcxml as marc from auth_header order by id asc',
@@ -748,6 +752,29 @@ sub check_marc {
     }
 
     output_err($id, $urllink, \@errors);
+}
+
+sub _read_db_settings_xml {
+    my ($fname, $dbdata) = @_;
+    my %data = %{$dbdata};
+
+    my %matchxml = (
+        '//config/db_scheme' => 'driver',
+        '//config/database' => 'dbname',
+        '//config/hostname' => 'hostname',
+        '//config/user' => 'username',
+        '//config/pass' => 'password',
+        # TODO: port, socket
+        );
+
+    my $dom = XML::LibXML->load_xml(location => $fname);
+
+    foreach my $k (keys(%matchxml)) {
+        my $v = $matchxml{$k};
+        $data{$v} = $dom->findvalue($k) || $data{$v};
+    }
+
+    return \%data;
 }
 
 sub db_connect {
