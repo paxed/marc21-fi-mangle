@@ -1,28 +1,24 @@
 #!/bin/bash
 
-#10 03 * * *        cd /home/koha/marc21-fi-mangle && ./luo_virhelista.sh
-#02 03 1 * *        cd /home/koha/marc21-fi-mangle && ./get_fi_xmls.sh && ./update_frameworks.sh
+test -z "$KOHA_CONF" && echo "No KOHA_CONF." && exit 1
+getconf() { xmllint --xpath "yazgfs/config/$1/text()" $KOHA_CONF 2> /dev/null; }
+DBNAME="$(getconf database)"
 
-TUNNUS=VAARA
-MAILI_TO=myemail@example.com
-MAILI_FROM=fromemail@example.com
-MAILI_SUBJ="Luettelointipohjien muutokset"
-MAILI_TEXT=""
-DBPARAMS="-db username=root -db password='' -db dbname=koha -db hostname=127.0.0.1"
-
+OUTPATH=/var/koha/
+OUTFILE=${DBNAME}_framework_updates.txt
 
 PVM=$(date +%Y%m%d)
-FILEA=/tmp/upsert_${TUNNUS}_default.log
-FILEB=/tmp/upsert_${TUNNUS}_kaikki.log
-FILEC=/tmp/${TUNNUS}_marc21_framework_updates_${PVM}.log
-FILEE=/tmp/upsert_${TUNNUS}_errors.log
+FILEA=/tmp/upsert_${DBNAME}_default.log
+FILEB=/tmp/upsert_${DBNAME}_kaikki.log
+FILEC=/tmp/${OUTFILE}
+FILEE=/tmp/upsert_${DBNAME}_errors.log
 
 if [ ! -e "$FILEC" ]; then
     # default framework
-    eval perl upsert_marc_fields.pl $DBPARAMS --flags=intranet,opac,editor --insert --update > "$FILEA" 2> "$FILEE"
+    eval perl upsert_marc_fields.pl --flags=intranet,opac,editor --insert --update > "$FILEA" 2> "$FILEE"
 
     # all other frameworks
-    eval perl upsert_marc_fields.pl $DBPARAMS --framework='*-' --flags=intranet,opac --insert --update > "$FILEB" 2>> "$FILEE"
+    eval perl upsert_marc_fields.pl --framework='*-' --flags=intranet,opac --insert --update > "$FILEB" 2>> "$FILEE"
 
     cat "$FILEE" > "$FILEC"
     cat "$FILEA" >> "$FILEC"
@@ -33,5 +29,7 @@ RIVIT=$(wc -l "$FILEC" | cut -d' ' -f 1)
 
 if test $RIVIT -gt 0
 then
-    echo "${MAILI_TEXT}" | mail -s "${MAILI_SUBJ}" -a "$FILEC" -r "${MAILI_FROM}" "${MAILI_TO}"
+    OFNAME=${OUTPATH}${OUTFILE]
+    echo "Updated: $PVM" > "${OFNAME}"
+    cat "$FILEC" >> "${OFNAME}"
 fi

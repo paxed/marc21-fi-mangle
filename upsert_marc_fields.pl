@@ -71,6 +71,10 @@ my $hidden_value = -6; # intranet,opac
 my $set_existing_hidden = 0;
 my $dryrun = 0;
 
+my $db_filename = "/etc/koha/koha-conf.xml";
+
+%dbdata = %{_read_db_settings_xml($db_filename, \%dbdata)} if (-f $db_filename && -r $db_filename);
+
 GetOptions(
     'db=s%' => sub { my $onam = $_[1]; my $oval = $_[2]; if (exists($dbdata{$onam})) { $dbdata{$onam} = $oval; } else { warn "Unknown db setting '".$onam."'."; } },
     'ignore=s' => \$ignore_fields_param,
@@ -166,6 +170,29 @@ sub generate_tag_sequence {
     }
 
     return @fields;
+}
+
+sub _read_db_settings_xml {
+    my ($fname, $dbdata) = @_;
+    my %data = %{$dbdata};
+
+    my %matchxml = (
+        '//config/db_scheme' => 'driver',
+        '//config/database' => 'dbname',
+        '//config/hostname' => 'hostname',
+        '//config/user' => 'username',
+        '//config/pass' => 'password',
+        # TODO: port, socket
+        );
+
+    my $dom = XML::LibXML->load_xml(location => $fname);
+
+    foreach my $k (keys(%matchxml)) {
+        my $v = $matchxml{$k};
+        $data{$v} = $dom->findvalue($k) || $data{$v};
+    }
+
+    return \%data;
 }
 
 sub db_connect {
