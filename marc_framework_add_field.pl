@@ -65,7 +65,7 @@ my $set_existing_hidden = 0;
 my $dryrun = 0;
 my $field = '942';
 my $subfield = 'b';
-my $field_desc = 'Valutus';
+my $field_desc = 'Estä valuminen';
 my $auth_value = 'YES_NO';
 
 

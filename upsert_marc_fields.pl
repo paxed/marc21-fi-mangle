@@ -439,7 +439,7 @@ sub mk_sql_update {
 	}
 	print $sql."\n" if ($debug);
 	print Dumper(\@u_datas) if ($debug);
-	if ($update && $dbh) {
+	if ($update && $dbh && !$dryrun) {
 	    my $sth = $dbh->prepare($sql);
 	    $sth->execute(@u_datas);
 	}
@@ -474,7 +474,7 @@ sub mk_sql_insert {
 
 	print $sql."\n".Dumper(\@u_datas) if ($debug);
 
-	if ($insert) {
+	if ($insert && $dbh && !$dryrun) {
 	    my $sth = $dbh->prepare($sql);
 	    $sth->execute(@u_datas);
 	    print fwcname($fwc)."Added new field: ".pfld($ftag)." (".$field_data{$ftag}{'name'}.")\n";
@@ -550,14 +550,14 @@ sub update_db_tags {
 }
 
 read_xml($xml_glob);
-db_query_alltags() if (!$dryrun);
+db_query_alltags();
 
 if ($debug) {
     print "Data from XML:\n".Dumper(\%field_data);
     print "Data from Koha database:\n".Dumper(\%tags);
 }
 
-update_db_tags() if (!$dryrun);
+update_db_tags();
 
 
 

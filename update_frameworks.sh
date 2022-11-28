@@ -29,7 +29,7 @@ RIVIT=$(wc -l "$FILEC" | cut -d' ' -f 1)
 
 if test $RIVIT -gt 0
 then
-    OFNAME=${OUTPATH}${OUTFILE]
+    OFNAME="${OUTPATH}${OUTFILE}"
     echo "Updated: $PVM" > "${OFNAME}"
     cat "$FILEC" >> "${OFNAME}"
 fi
