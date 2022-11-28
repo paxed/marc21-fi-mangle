@@ -474,10 +474,12 @@ sub mk_sql_insert {
 
 	print $sql."\n".Dumper(\@u_datas) if ($debug);
 
+        if ($insert && $dbh) {
+            print fwcname($fwc)."Added new field: ".pfld($ftag)." (".$field_data{$ftag}{'name'}.")\n";
+        }
 	if ($insert && $dbh && !$dryrun) {
 	    my $sth = $dbh->prepare($sql);
 	    $sth->execute(@u_datas);
-	    print fwcname($fwc)."Added new field: ".pfld($ftag)." (".$field_data{$ftag}{'name'}.")\n";
 	}
     } else {
 	print fwcname($fwc)."Missing: ".pfld($ftag)." (".$field_data{$ftag}{'name'}.")\n";
