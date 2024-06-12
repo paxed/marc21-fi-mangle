@@ -17,8 +17,8 @@ if [ ! -e "$FILEC" ]; then
     # default framework
     eval perl upsert_marc_fields.pl --flags=intranet,opac,editor --insert --update > "$FILEA" 2> "$FILEE"
 
-    # all other frameworks
-    eval perl upsert_marc_fields.pl --framework='*-' --flags=intranet,opac --insert --update > "$FILEB" 2>> "$FILEE"
+    # all other frameworks, except ACQ
+    eval perl upsert_marc_fields.pl --framework='*-ACQ' --flags=intranet,opac --insert --update > "$FILEB" 2>> "$FILEE"
 
     cat "$FILEE" > "$FILEC"
     cat "$FILEA" >> "$FILEC"
