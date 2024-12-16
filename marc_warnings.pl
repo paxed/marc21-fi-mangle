@@ -593,6 +593,11 @@ sub check_regexkeys {
 
 		my $allow_vals = $field_data{$auth_or_bibs}{'allow_regex'}{$rk}{$ffk};
 
+                # ignoring eg. "007/02"
+                next if (defined($ignore_fields{$tag . "/" . $ffk}));
+                # ignoring eg. "007-s/06"
+                next if (defined($ignore_fields{$tagntype . "/" . $ffk}));
+
 		if ($ffk =~ /^\d+$/) {
 		    $s = length($data) < int($ffk) ? '' : substr($data, int($ffk), 1);
 
@@ -939,9 +944,10 @@ then the id is used instead.
 =item B<-ignore=fieldspecs>
 
 Ignore certain fields, subfields or indicators. For example:
-  C<-ignore=590,028a,655.ind2,008.length,9xx>
+  C<-ignore=590,028a,655.ind2,008.length,9xx,007/02,006-MU/07-12>
 would ignore the field 590, subfield 028a, indicator 2 of field 655,
-length checking for field 008, and all 9XX fields.
+length checking for field 008, all 9XX fields,
+field 007 character position 02, and field 006-MU positions 07-12.
 
 =item B<-skip-enclevels=str>
 
