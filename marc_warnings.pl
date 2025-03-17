@@ -628,7 +628,7 @@ sub check_marc {
 	$record = MARC::Record->new_from_xml($marc);
     };
     if ($@) {
-        my @err = ("MARC record error");
+        my @err = ("MARC record error: " . $MARC::Record::ERROR);
         print STDERR "[[[[[$marc]]]]]\n";
         output_err($id, $urllink, \@err);
         return;
