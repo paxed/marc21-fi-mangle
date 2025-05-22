@@ -617,8 +617,8 @@ whether -auth or -bibs is given.
 
 Only check the listed frameworks, separated by commas.
 By default only the default framework is checked.
-Asterisk '*' means all frameworks. To do all frameworks except the listed ones,
-use '*-X,Y', which would do every framework except X and Y.
+Asterisk '*' means all frameworks. To do all frameworks except the listed
+ones, use '*-X,Y', which would do every framework except X and Y.
 Asterisk, if used, must be first.
  For example:
   C<-framework=ACQ,VR>
